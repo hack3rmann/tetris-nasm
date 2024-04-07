@@ -170,6 +170,9 @@ Window_new:
     ; return.msg = mem::zeroed()
     MEM_ZEROED MSG, edi+Window.msg
 
+    ; return.callbacks = mem::zeroed()
+    MEM_ZEROED WindowCallbacks, edi+Window.callbacks
+
     ; ShowWindow(return.hwnd, 1)
     push 1
     push dword [edi+Window.hwnd]
@@ -299,6 +302,63 @@ Window__window_procedure:
     ; }
     .msg_is_not_WM_CLOSE:
 
+    ; if msg == WM_SYSKEYDOWN || msg == WM_KEYDOWN {
+    cmp dword [ebp+.msg], WM_SYSKEYDOWN
+    sete al
+    cmp dword [ebp+.msg], WM_KEYDOWN
+    sete ah
+    or al, ah
+    test al, al
+    jz .msg_is_not_WM_SYSKEYDOWN_and_not_WM_KEYDOWN
+
+        ; (self.callbacks.on_key_down)(window, wparam)
+        mov ecx, dword [esi+Window.callbacks+WindowCallbacks.on_key_down]
+        test ecx, ecx
+        jz .on_key_down_callback_is_null
+        push dword [ebp+.wparam]
+        push esi
+        call ecx
+        .on_key_down_callback_is_null:
+
+    ; }
+    .msg_is_not_WM_SYSKEYDOWN_and_not_WM_KEYDOWN:
+    
+    ; if msg == WM_SYSKEYUP || msg == WM_KEYUP {
+    cmp dword [ebp+.msg], WM_SYSKEYUP
+    sete al
+    cmp dword [ebp+.msg], WM_KEYUP
+    sete ah
+    or al, ah
+    test al, al
+    jne .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP
+
+        ; (self.callbacks.on_key_up)(window, wparam)
+        mov ecx, dword [esi+Window.callbacks+WindowCallbacks.on_key_up]
+        test ecx, ecx
+        jz .on_key_up_callback_is_null
+        push dword [ebp+.wparam]
+        push esi
+        call ecx
+        .on_key_up_callback_is_null:
+
+    ; }
+    .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP:
+    
+    ; if msg == WM_PAINT {
+    cmp dword [ebp+.msg], WM_PAINT
+    jne .msg_is_not_WM_PAINT
+
+        ; (self.callbacks.on_draw)(window)
+        mov ecx, dword [esi+Window.callbacks+WindowCallbacks.on_draw]
+        test ecx, ecx
+        jz .on_draw_callback_is_null
+        push esi
+        call ecx
+        .on_draw_callback_is_null:
+
+    ; }
+    .msg_is_not_WM_PAINT:
+
     ; return DefWindowProc(hwnd, msg, wparam, lparam)
     push dword [ebp+.lparam]
     push dword [ebp+.wparam]
@@ -381,6 +441,27 @@ Window_process_messages:
     xor dl, dl
 
 .exit:
+    pop esi
+    pop ebp
+    ret 4
+
+
+; #[stdcall]
+; fn Window::request_redraw(&self)
+Window_request_redraw:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase        equ 12
+    .self           equ .argbase+0
+
+    mov esi, dword [ebp+.self]
+
+    ; UpdateWindow(self.hwnd)
+    push dword [esi+Window.hwnd]
+    call UpdateWindow
+
     pop esi
     pop ebp
     ret 4

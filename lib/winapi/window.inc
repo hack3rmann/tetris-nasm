@@ -7,7 +7,8 @@ extern GetModuleHandleA@4, RegisterClassA@4, CreateWindowExA@48, ShowWindow@8
 extern DefWindowProcA@16, UnregisterClassA@8, DestroyWindow@4
 extern SetWindowLongA@12, GetWindowLongA@8, PostQuitMessage@4
 extern PeekMessageA@20, TranslateMessage@4, DispatchMessageA@4
-extern GetMessageA@16, AdjustWindowRect@12
+extern GetMessageA@16, AdjustWindowRect@12, GetDC@4, ReleaseDC@8
+extern UpdateWindow@4
 
 %define GetModuleHandle     GetModuleHandleA@4
 %define RegisterClass       RegisterClassA@4
@@ -24,6 +25,9 @@ extern GetMessageA@16, AdjustWindowRect@12
 %define DispatchMessage     DispatchMessageA@4
 %define GetMessage          GetMessageA@16
 %define AdjuctWindowRect    AdjustWindowRect@12
+%define GetDC               GetDC@4
+%define ReleaseDC           ReleaseDC@8
+%define UpdateWindow        UpdateWindow@4
 
 
 
@@ -38,6 +42,10 @@ extern GetMessageA@16, AdjustWindowRect@12
 %define WM_CLOSE            0x0010
 %define WM_NCCREATE         0x0081
 %define WM_QUIT             0x0012
+%define WM_SYSKEYDOWN       0x0104
+%define WM_SYSKEYUP         0x0105
+%define WM_KEYDOWN          0x0100
+%define WM_KEYUP            0x0101
 
 %define WS_CAPTION          0x00C00000
 %define WS_MINIMIZEBOX      0x00020000
