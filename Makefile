@@ -7,6 +7,8 @@ NASM_FLAGS = --gprefix _ -f win32
 
 LINKER = $(SASM_PATH)/MinGW/bin/gcc.exe
 LINKER_FLAGS = -g -m32
+ADDITIONAL_LIBRARIES = Gdi32
+ADDITIONAL_LINK_DIRECTORIES = lib/winapi
 
 
 compile: $(TARGET_DIR)
@@ -24,6 +26,8 @@ link: compile
 	@$(LINKER) \
 		$(LINKER_FLAGS) \
 		$(wildcard $(TARGET_DIR)/*.obj) \
+		$(foreach lib, $(ADDITIONAL_LIBRARIES), -l$(lib)) \
+		$(foreach dir, $(ADDITIONAL_LINK_DIRECTORIES), -L$(dir)) \
 		-o $(TARGET_DIR)/$(EXECUTABLE_NAME)
 
 

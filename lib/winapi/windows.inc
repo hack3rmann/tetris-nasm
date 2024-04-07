@@ -8,7 +8,9 @@ extern DefWindowProcA@16, UnregisterClassA@8, DestroyWindow@4
 extern SetWindowLongA@12, GetWindowLongA@8, PostQuitMessage@4
 extern PeekMessageA@20, TranslateMessage@4, DispatchMessageA@4
 extern GetMessageA@16, AdjustWindowRect@12, GetDC@4, ReleaseDC@8
-extern UpdateWindow@4
+extern UpdateWindow@4, CreateSolidBrush@4, DeleteObject@4, SelectObject@8
+extern PatBlt@24, InvalidateRect@12, BeginPaint@8, EndPaint@8
+extern BitBlt@36, CreateCompatibleDC@4, CreateDIBSection@24, DeleteDC@4
 
 %define GetModuleHandle     GetModuleHandleA@4
 %define RegisterClass       RegisterClassA@4
@@ -28,6 +30,17 @@ extern UpdateWindow@4
 %define GetDC               GetDC@4
 %define ReleaseDC           ReleaseDC@8
 %define UpdateWindow        UpdateWindow@4
+%define CreateSolidBrush    CreateSolidBrush@4
+%define DeleteObject        DeleteObject@4
+%define SelectObject        SelectObject@8
+%define PatBlt              PatBlt@24
+%define InvalidateRect      InvalidateRect@12
+%define BeginPaint          BeginPaint@8
+%define EndPaint            EndPaint@8
+%define BitBlt              BitBlt@36
+%define CreateCompatibleDC  CreateCompatibleDC@4
+%define CreateDIBSection    CreateDIBSection@24
+%define DeleteDC            DeleteDC@4
 
 
 
@@ -46,6 +59,7 @@ extern UpdateWindow@4
 %define WM_SYSKEYUP         0x0105
 %define WM_KEYDOWN          0x0100
 %define WM_KEYUP            0x0101
+%define WM_SIZE             0x0005
 
 %define WS_CAPTION          0x00C00000
 %define WS_MINIMIZEBOX      0x00020000
@@ -59,6 +73,17 @@ extern UpdateWindow@4
 %define PM_REMOVE           0x0001
 
 %define CS_OWNDC            0x0020
+
+%define PATCOPY             0x00F00021
+%define PATINVERT           0x005A0049
+%define DSTINVERT           0x00550009
+%define BLACKNESS           0x00000042
+%define WHITENESS           0x00FF0062
+%define SRCCOPY             0x00CC0020
+
+%define BI_RGB              0x00000000
+
+%define DIB_RGB_COLORS      0x00000000
 
 
 
@@ -108,6 +133,56 @@ struc RECT
     .right              resd 1
     .bottom             resd 1
     .sizeof             equ $-.left
+endstruc
+
+struc PAINTSTRUCT
+    .hdc                resd 1
+    .fErase             resd 1
+    .rcPaint            resb RECT.sizeof
+    .fRestore           resd 1
+    .fIncUpdate         resd 1
+    .rgbReserved        resb 32
+    .sizeof             equ $-.hdc
+endstruc
+
+struc BITMAPINFOHEADER
+    .biSize             resd 1
+    .biWidth            resd 1
+    .biHeight           resd 1
+    .biPlanes           resw 1
+    .biBitCount         resw 1
+    .biCompression      resd 1
+    .biSizeImage        resd 1
+    .biXPelsPerMeter    resd 1
+    .biYPelsPerMeter    resd 1
+    .biClrUsed          resd 1
+    .biClrImportant     resd 1
+    .sizeof             equ $-.biSize
+endstruc
+
+struc RGBQUAD
+    .rgbBlue            resb 1
+    .rgbGreen           resb 1
+    .rgbRed             resb 1
+    .rgbReserved        resb 1
+    .sizeof             equ $-.rgbBlue
+endstruc
+
+struc BITMAPINFO
+    .bmiHeader          resb BITMAPINFOHEADER.sizeof
+    .bmiColors          resb RGBQUAD.sizeof
+    .sizeof             equ $-.bmiHeader
+endstruc
+
+struc BITMAP
+    .bmType             resd 1
+    .bmWidth            resd 1
+    .bmHeight           resd 1
+    .bmWidthBytes       resd 1
+    .bmPlanes           resw 1
+    .bmBitsPixel        resw 1
+    .bmBits             resd 1
+    .sizeof             equ $-.bmType
 endstruc
 
 

@@ -115,6 +115,14 @@ Window_new:
     push eax
     call WindowClass_new
 
+    ; return.width = width
+    mov eax, dword [ebp+.width]
+    mov dword [edi+Window.width], eax
+
+    ; return.height = height
+    mov eax, dword [ebp+.height]
+    mov dword [edi+Window.height], eax
+
     ; rect.left = Window_DEFAULT_POS_X
     mov dword [ebp+.rect+RECT.left], Window_DEFAULT_POS_X
 
@@ -167,11 +175,11 @@ Window_new:
     call CreateWindow
     mov dword [edi+Window.hwnd], eax
 
-    ; return.subscribers = VecU32::with_capacity(4)
+    ; return.subscribers = Vec32::with_capacity(4)
     push 4
     lea eax, dword [edi+Window.subscribers]
     push eax
-    call VecU32_with_capacity
+    call Vec32_with_capacity
 
     ; return.msg = mem::zeroed()
     MEM_ZEROED MSG, edi+Window.msg
@@ -200,10 +208,10 @@ Window_drop:
 
     mov esi, dword [ebp+.self]
 
-    ; VecU32::drop(&mut self.subscribers)
+    ; Vec32::drop(&mut self.subscribers)
     lea eax, dword [esi+Window.subscribers]
     push eax
-    call VecU32_drop
+    call Vec32_drop
 
     ; DestroyWindow(self.hwnd)
     push dword [edi+Window.hwnd]
@@ -300,11 +308,11 @@ Window__window_procedure:
     ; for subscriber in self.subscribers {
     xor ebx, ebx
     .for_subscriber_start:
-        cmp ebx, dword [esi+Window.subscribers+VecU32.len]
+        cmp ebx, dword [esi+Window.subscribers+Vec32.len]
         jnb .for_subscriber_end
 
         ; let (callback := ecx) = subscriber
-        mov ecx, dword [esi+Window.subscribers+VecU32.ptr]
+        mov ecx, dword [esi+Window.subscribers+Vec32.ptr]
         mov ecx, dword [ecx+4*ebx]
 
         ; callback(window, msg, wparam, lparam)
@@ -433,6 +441,12 @@ Window_request_redraw:
 
     mov esi, dword [ebp+.self]
 
+    ; InvalidateRect(self.hwnd, null, FALSE)
+    push 0
+    push 0
+    push dword [esi+Window.hwnd]
+    call InvalidateRect
+
     ; UpdateWindow(self.hwnd)
     push dword [esi+Window.hwnd]
     call UpdateWindow
@@ -462,7 +476,7 @@ Window_add_event_listener:
     push dword [ebp+.callback]
     lea eax, dword [esi+Window.subscribers]
     push eax
-    call VecU32_push
+    call Vec32_push
 
     pop esi
     pop ebp

@@ -1,7 +1,7 @@
 %ifndef _TETRIS_LIB_WINDOW_
 %define _TETRIS_LIB_WINDOW_
 
-%include "lib/winapi/window.inc"
+%include "lib/winapi/windows.inc"
 %include "lib/vec.inc"
 
 
@@ -21,7 +21,9 @@ struc Window
     .msg            resb MSG.sizeof
     .class          resb WindowClass.sizeof
     ; subscribers: Vec<#[stdcall] fn(&Window, UINT, WPARAM, LPARAM)>
-    .subscribers    resb VecU32.sizeof
+    .subscribers    resb Vec32.sizeof
+    .width          resd 1
+    .height         resd 1
     .sizeof         equ $-.hwnd
 endstruc
 
