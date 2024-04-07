@@ -21,7 +21,7 @@ struc Window
     .hwnd   resd 1
     .msg    resb MSG.sizeof
     .class  resb WindowClass.sizeof
-    .sizeof equ $-.class
+    .sizeof equ $-.hwnd
 endstruc
 
 %define Window_DEFAULT_POS_X 100

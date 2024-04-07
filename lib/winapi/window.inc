@@ -7,7 +7,7 @@ extern GetModuleHandleA@4, RegisterClassA@4, CreateWindowExA@48, ShowWindow@8
 extern DefWindowProcA@16, UnregisterClassA@8, DestroyWindow@4
 extern SetWindowLongA@12, GetWindowLongA@8, PostQuitMessage@4
 extern PeekMessageA@20, TranslateMessage@4, DispatchMessageA@4
-extern GetMessageA@16
+extern GetMessageA@16, AdjustWindowRect@12
 
 %define GetModuleHandle     GetModuleHandleA@4
 %define RegisterClass       RegisterClassA@4
@@ -23,6 +23,7 @@ extern GetMessageA@16
 %define TranslateMessage    TranslateMessage@4
 %define DispatchMessage     DispatchMessageA@4
 %define GetMessage          GetMessageA@16
+%define AdjuctWindowRect    AdjustWindowRect@12
 
 
 
@@ -48,6 +49,8 @@ extern GetMessageA@16
 %define GWLP_WNDPROC        -4
 
 %define PM_REMOVE           0x0001
+
+%define CS_OWNDC            0x0020
 
 
 
@@ -82,13 +85,21 @@ struc CREATESTRUCTA
 endstruc
 
 struc MSG
-    .hwnd                resd 1
-    .message             resd 1
-    .wParam              resd 1
-    .lParam              resd 1
-    .time                resd 1
-    .pt                  resd 1
+    .hwnd               resd 1
+    .message            resd 1
+    .wParam             resd 1
+    .lParam             resd 1
+    .time               resd 1
+    .pt                 resd 1
     .sizeof             equ $-.hwnd
+endstruc
+
+struc RECT
+    .left               resd 1
+    .top                resd 1
+    .right              resd 1
+    .bottom             resd 1
+    .sizeof             equ $-.left
 endstruc
 
 

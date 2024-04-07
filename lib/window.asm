@@ -48,6 +48,9 @@ WindowClass_new:
     mov dword [ebp+.desc+WNDCLASSA.lpszClassName], eax
     mov dword [edi+WindowClass.name], eax
 
+    ; desc.style = CS_OWNDC
+    mov dword [ebp+.desc+WNDCLASSA.style], CS_OWNDC
+
     ; RegisterClass(&desc)
     lea eax, dword [ebp+.desc]
     push eax
@@ -91,11 +94,17 @@ Window_new:
     push edi
     mov ebp, esp
 
+    .rect           equ -RECT.sizeof
+
     .argbase        equ 12
     .return         equ .argbase+0
     .name           equ .argbase+4
     .width          equ .argbase+8
     .height         equ .argbase+12
+
+    .stack_size     equ -.rect
+
+    sub esp, .stack_size
 
     ; return := edi
     mov edi, dword [ebp+.return]
@@ -106,13 +115,36 @@ Window_new:
     push eax
     call WindowClass_new
 
+    ; rect.left = Window_DEFAULT_POS_X
+    mov dword [ebp+.rect+RECT.left], Window_DEFAULT_POS_X
+
+    ; rect.top = Window_DEFAULT_POS_Y
+    mov dword [ebp+.rect+RECT.top], Window_DEFAULT_POS_Y
+
+    ; rect.right = width + Window_DEFAULT_POS_X
+    mov eax, dword [ebp+.width]
+    add eax, Window_DEFAULT_POS_X
+    mov dword [ebp+.rect+RECT.right], eax
+
+    ; rect.bottom = height + Window_DEFAULT_POS_Y
+    mov eax, dword [ebp+.height]
+    add eax, Window_DEFAULT_POS_Y
+    mov dword [ebp+.rect+RECT.bottom], eax
+
+    ; AdjustWindowRect(&mut rect, WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU, FALSE)
+    push 0
+    push WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU
+    lea eax, dword [ebp+.rect]
+    push eax
+    call AdjuctWindowRect
+
     ; return.hwnd = CreateWindow(
     ;     0,
     ;     return.class.name,
     ;     name,
     ;     WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU,
     ;     Window::DEFAULT_POS_X, Window::DEFAULT_POS_Y,
-    ;     width, height,
+    ;     rect.right - rect.left, rect.bottom - rect.top,
     ;     null, null,
     ;     return.class.hinstance,
     ;     self)
@@ -120,8 +152,12 @@ Window_new:
     push dword [edi+WindowClass.hinstance]
     push 0
     push 0
-    push dword [ebp+.height]
-    push dword [ebp+.width]
+    mov eax, dword [ebp+.rect+RECT.bottom]
+    sub eax, dword [ebp+.rect+RECT.top]
+    push eax
+    mov eax, dword [ebp+.rect+RECT.right]
+    sub eax, dword [ebp+.rect+RECT.left]
+    push eax
     push Window_DEFAULT_POS_Y
     push Window_DEFAULT_POS_X
     push WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU
@@ -138,6 +174,8 @@ Window_new:
     push 1
     push dword [edi+Window.hwnd]
     call ShowWindow
+
+    add esp, .stack_size
 
     pop edi
     pop ebp
