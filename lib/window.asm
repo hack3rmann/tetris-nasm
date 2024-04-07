@@ -330,7 +330,7 @@ Window__window_procedure:
     sete ah
     or al, ah
     test al, al
-    jne .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP
+    jz .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP
 
         ; (self.callbacks.on_key_up)(window, wparam)
         mov ecx, dword [esi+Window.callbacks+WindowCallbacks.on_key_up]

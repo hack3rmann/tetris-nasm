@@ -1,12 +1,14 @@
 %include "lib/window.inc"
+%include "lib/keyboard.inc"
 %include "lib/debug/print.inc"
 
 
 section .bss align 4
-    window resb Window.sizeof
+    window      resb Window.sizeof
+    keyboard    resb Keyboard.sizeof
 
 section .data align 4
-    exit_code dd 0
+    exit_code   dd 0
 
 section .rodata align 4
     window_name db "Tetris", 0, 0
@@ -21,12 +23,20 @@ main:
     push ebp
     mov ebp, esp
 
-    ; window = Window_new(window_name, 640, 480)
+    ; window = Window::new(window_name, 640, 480)
     push 480
     push 640
     push window_name
     push window
     call Window_new
+
+    ; keyboard = Keyboard::new()
+    push keyboard
+    call Keyboard_new
+
+    ; Keyboard::init_window(&mut window)
+    push window
+    call Keyboard_init_window
 
     ; loop {
     .msg_loop_start:
