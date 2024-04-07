@@ -10,6 +10,7 @@ extern calloc, realloc, free
 section .data
     Graphics_GLOBAL_PTR dd 0
     x dd 0
+    y dd 0
 
 section .text
 
@@ -453,7 +454,7 @@ Graphics_on_redraw:
     mov dword [ebp+.device_context], eax
 
     ; graphics.image.fill(COLOR_RGB(0, 0, 0))
-    push COLOR_RGB(0, 0, 0)
+    push COLOR_RGB(38, 26, 27)
     lea eax, dword [ebx+Graphics.image]
     push eax
     call ScreenImage_fill
@@ -470,9 +471,15 @@ Graphics_on_redraw:
     push eax
     call ScreenImage_fill_rect
 
-    ; FIXME:
-    inc dword [x]
-    and dword [x], 255
+    inc dword [y]
+    cmp dword [y], 256
+    jb .y_below_256
+
+        mov dword [y], 0
+        inc dword [x]
+        and dword [x], 255
+
+    .y_below_256:
 
     ; BitBlt(device_context,
     ;        paint_desc.rcPaint.left, paint_desc.rcPaint.top,
@@ -558,8 +565,6 @@ Graphics_init_image:
 
     ; self := esi
     mov esi, dword [ebp+.self]
-
-    DEBUG_PRINT_U32 0
 
     ; self.image.resize(width, height)
     push dword [ebp+.height]
