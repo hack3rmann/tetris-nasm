@@ -167,11 +167,14 @@ Window_new:
     call CreateWindow
     mov dword [edi+Window.hwnd], eax
 
+    ; return.subscribers = VecU32::with_capacity(4)
+    push 4
+    lea eax, dword [edi+Window.subscribers]
+    push eax
+    call VecU32_with_capacity
+
     ; return.msg = mem::zeroed()
     MEM_ZEROED MSG, edi+Window.msg
-
-    ; return.callbacks = mem::zeroed()
-    MEM_ZEROED WindowCallbacks, edi+Window.callbacks
 
     ; ShowWindow(return.hwnd, 1)
     push 1
@@ -196,6 +199,11 @@ Window_drop:
     .self           equ .argbase+0
 
     mov esi, dword [ebp+.self]
+
+    ; VecU32::drop(&mut self.subscribers)
+    lea eax, dword [esi+Window.subscribers]
+    push eax
+    call VecU32_drop
 
     ; DestroyWindow(self.hwnd)
     push dword [edi+Window.hwnd]
@@ -274,9 +282,10 @@ Window__window_setup_procedure:
 Window__window_procedure:
     push ebp
     push esi
+    push ebx
     mov ebp, esp
 
-    .argbase    equ 12
+    .argbase    equ 16
     .hwnd       equ .argbase+0
     .msg        equ .argbase+4
     .wparam     equ .argbase+8
@@ -287,6 +296,28 @@ Window__window_procedure:
     push dword [ebp+.hwnd]
     call GetWindowLong
     mov esi, eax
+
+    ; for subscriber in self.subscribers {
+    xor ebx, ebx
+    .for_subscriber_start:
+        cmp ebx, dword [esi+Window.subscribers+VecU32.len]
+        jnb .for_subscriber_end
+
+        ; let (callback := ecx) = subscriber
+        mov ecx, dword [esi+Window.subscribers+VecU32.ptr]
+        mov ecx, dword [ecx+4*ebx]
+
+        ; callback(window, msg, wparam, lparam)
+        push dword [ebp+.lparam]
+        push dword [ebp+.wparam]
+        push dword [ebp+.msg]
+        push esi
+        call ecx
+
+        inc ebx
+        jmp .for_subscriber_start
+    ; }
+    .for_subscriber_end:
 
     ; if msg == WM_CLOSE {
     cmp dword [ebp+.msg], WM_CLOSE
@@ -302,63 +333,6 @@ Window__window_procedure:
     ; }
     .msg_is_not_WM_CLOSE:
 
-    ; if msg == WM_SYSKEYDOWN || msg == WM_KEYDOWN {
-    cmp dword [ebp+.msg], WM_SYSKEYDOWN
-    sete al
-    cmp dword [ebp+.msg], WM_KEYDOWN
-    sete ah
-    or al, ah
-    test al, al
-    jz .msg_is_not_WM_SYSKEYDOWN_and_not_WM_KEYDOWN
-
-        ; (self.callbacks.on_key_down)(window, wparam)
-        mov ecx, dword [esi+Window.callbacks+WindowCallbacks.on_key_down]
-        test ecx, ecx
-        jz .on_key_down_callback_is_null
-        push dword [ebp+.wparam]
-        push esi
-        call ecx
-        .on_key_down_callback_is_null:
-
-    ; }
-    .msg_is_not_WM_SYSKEYDOWN_and_not_WM_KEYDOWN:
-    
-    ; if msg == WM_SYSKEYUP || msg == WM_KEYUP {
-    cmp dword [ebp+.msg], WM_SYSKEYUP
-    sete al
-    cmp dword [ebp+.msg], WM_KEYUP
-    sete ah
-    or al, ah
-    test al, al
-    jz .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP
-
-        ; (self.callbacks.on_key_up)(window, wparam)
-        mov ecx, dword [esi+Window.callbacks+WindowCallbacks.on_key_up]
-        test ecx, ecx
-        jz .on_key_up_callback_is_null
-        push dword [ebp+.wparam]
-        push esi
-        call ecx
-        .on_key_up_callback_is_null:
-
-    ; }
-    .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP:
-    
-    ; if msg == WM_PAINT {
-    cmp dword [ebp+.msg], WM_PAINT
-    jne .msg_is_not_WM_PAINT
-
-        ; (self.callbacks.on_draw)(window)
-        mov ecx, dword [esi+Window.callbacks+WindowCallbacks.on_draw]
-        test ecx, ecx
-        jz .on_draw_callback_is_null
-        push esi
-        call ecx
-        .on_draw_callback_is_null:
-
-    ; }
-    .msg_is_not_WM_PAINT:
-
     ; return DefWindowProc(hwnd, msg, wparam, lparam)
     push dword [ebp+.lparam]
     push dword [ebp+.wparam]
@@ -367,6 +341,7 @@ Window__window_procedure:
     call DefWindowProc
 
 .exit:
+    pop ebx
     pop esi
     pop ebp
     ret 16
@@ -408,7 +383,7 @@ Window_process_messages:
         lea eax, dword [esi+Window.msg]
         push eax
         call PeekMessage
-        test al, 1
+        test al, al
         jz .while_peek_message_end
 
         ; if self.msg.message == WM_QUIT {
@@ -465,3 +440,30 @@ Window_request_redraw:
     pop esi
     pop ebp
     ret 4
+
+
+; #[stdcall]
+; fn Window::add_event_listener(
+;     &mut self, callback: #[stdcall] fn(&Window, UINT, WPARAM, LPARAM),
+; )
+Window_add_event_listener:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase        equ 12
+    .self           equ .argbase+0
+    .callback       equ .argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; self.subscribers.push(callback)
+    push dword [ebp+.callback]
+    lea eax, dword [esi+Window.subscribers]
+    push eax
+    call VecU32_push
+
+    pop esi
+    pop ebp
+    ret 8

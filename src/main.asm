@@ -34,9 +34,10 @@ main:
     push keyboard
     call Keyboard_new
 
-    ; Keyboard::init_window(&mut window)
+    ; window.add_event_listener(Keyboard::window_event_listener)
+    push Keyboard_window_event_listener
     push window
-    call Keyboard_init_window
+    call Window_add_event_listener
 
     ; loop {
     .msg_loop_start:

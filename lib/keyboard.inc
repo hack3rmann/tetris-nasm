@@ -14,7 +14,7 @@ struc Keyboard
 endstruc
 
 extern Keyboard_new, Keyboard_init_window, Keyboard_on_key_up
-extern Keyboard_on_key_down, Keyboard_is_pressed
+extern Keyboard_on_key_down, Keyboard_is_pressed, Keyboard_window_event_listener
 extern Keyboard_press, Keyboard_release
 
 

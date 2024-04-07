@@ -1,10 +1,11 @@
 TARGET_DIR = target
 EXECUTABLE_NAME = tetris.exe
 
-NASM = "D:/Program Files (x86)/SASM/NASM/nasm.exe"
+SASM_PATH = "D:/Program Files (x86)/SASM"
+NASM = $(SASM_PATH)/NASM/nasm.exe
 NASM_FLAGS = --gprefix _ -f win32
 
-LINKER = "D:/Program Files (x86)/SASM/MinGW/bin/gcc.exe"
+LINKER = $(SASM_PATH)/MinGW/bin/gcc.exe
 LINKER_FLAGS = -g -m32
 
 

@@ -37,30 +37,6 @@ Keyboard_new:
 
 
 ; #[stdcall]
-; fn Keyboard::init_window(window: &mut Window)
-Keyboard_init_window:
-    push ebp
-    push edi
-    mov ebp, esp
-
-    .argbase        equ 12
-    .window         equ .argbase+0
-
-    ; window := edi
-    mov edi, dword [ebp+.window]
-
-    ; window.callbacks.on_key_down = Self::on_key_down
-    mov dword [edi+Window.callbacks+WindowCallbacks.on_key_down], Keyboard_on_key_down
-
-    ; window.callbacks.on_key_up = Self::on_key_up
-    mov dword [edi+Window.callbacks+WindowCallbacks.on_key_up], Keyboard_on_key_up
-
-    pop edi
-    pop ebp
-    ret 4
-
-
-; #[stdcall]
 ; fn Keyboard::on_key_down(_: &Window, key_code: u32)
 Keyboard_on_key_down:
     push ebp
@@ -237,3 +213,53 @@ Keyboard_release:
     pop esi
     pop ebp
     ret 8
+
+
+; #[stdcall]
+; fn Keyboard::window_event_listener(window: &Window, msg: UINT, wparam: WPARAM, lparam: LPARAM)
+Keyboard_window_event_listener:
+    push ebp
+    mov ebp, esp
+
+    .argbase        equ 8
+    .window         equ .argbase+0
+    .msg            equ .argbase+4
+    .wparam         equ .argbase+8
+    .lparam         equ .argbase+12
+
+    ; if msg == WM_SYSKEYDOWN || msg == WM_KEYDOWN {
+    cmp dword [ebp+.msg], WM_SYSKEYDOWN
+    sete al
+    cmp dword [ebp+.msg], WM_KEYDOWN
+    sete ah
+    or al, ah
+    test al, al
+    jz .msg_is_not_WM_SYSKEYDOWN_and_not_WM_KEYDOWN
+
+        ; Self::on_key_down(window, wparam)
+        push dword [ebp+.wparam]
+        push dword [ebp+.window]
+        call Keyboard_on_key_down
+
+    ; }
+    .msg_is_not_WM_SYSKEYDOWN_and_not_WM_KEYDOWN:
+    
+    ; if msg == WM_SYSKEYUP || msg == WM_KEYUP {
+    cmp dword [ebp+.msg], WM_SYSKEYUP
+    sete al
+    cmp dword [ebp+.msg], WM_KEYUP
+    sete ah
+    or al, ah
+    test al, al
+    jz .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP
+
+        ; Self::on_key_up(window, wparam)
+        push dword [ebp+.wparam]
+        push dword [ebp+.window]
+        call Keyboard_on_key_up
+
+    ; }
+    .msg_is_not_WM_SYSKEYUP_and_not_WM_KEYUP:
+
+    pop ebp
+    ret 16
