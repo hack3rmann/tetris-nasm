@@ -7,14 +7,18 @@ extern printf, putchar
 section .text
 
 ; #[stdcall]
-; fn debug_print_u32(value: u32)
-debug_print_u32:
+; fn debug_u32(value: u32)
+debug_u32:
     push ebp
     mov ebp, esp
 
-    .fmt        equ -4
-    .value      equ 8
-    .stack_size equ -.fmt
+    .fmt            equ -4
+
+    .argbase        equ 8
+    .value          equ .argbase+0
+    
+    .args_size      equ .value-.argbase+4
+    .stack_size     equ -.fmt
 
     sub esp, .stack_size
 
@@ -30,7 +34,7 @@ debug_print_u32:
     add esp, .stack_size
 
     pop ebp
-    ret 4
+    ret .args_size
 
 
 ; #[stdcall]
@@ -46,3 +50,22 @@ debug_newline:
 
     pop ebp
     ret
+
+
+; #[stdcall]
+; fn debug(string: *const u8)
+debug:
+    push ebp
+    mov ebp, esp
+
+    .argbase        equ 8
+    .string         equ .argbase+0
+
+    .args_size      equ .string-.argbase+4
+
+    push dword [ebp+.string]
+    call printf
+    add esp, 4
+
+    pop ebp
+    ret .args_size

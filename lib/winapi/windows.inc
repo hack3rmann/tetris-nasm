@@ -11,6 +11,7 @@ extern GetMessageA@16, AdjustWindowRect@12, GetDC@4, ReleaseDC@8
 extern UpdateWindow@4, CreateSolidBrush@4, DeleteObject@4, SelectObject@8
 extern PatBlt@24, InvalidateRect@12, BeginPaint@8, EndPaint@8
 extern BitBlt@36, CreateCompatibleDC@4, CreateDIBSection@24, DeleteDC@4
+extern GetLastError@0, CreateBitmap@20
 
 %define GetModuleHandle     GetModuleHandleA@4
 %define RegisterClass       RegisterClassA@4
@@ -26,7 +27,7 @@ extern BitBlt@36, CreateCompatibleDC@4, CreateDIBSection@24, DeleteDC@4
 %define TranslateMessage    TranslateMessage@4
 %define DispatchMessage     DispatchMessageA@4
 %define GetMessage          GetMessageA@16
-%define AdjuctWindowRect    AdjustWindowRect@12
+%define AdjustWindowRect    AdjustWindowRect@12
 %define GetDC               GetDC@4
 %define ReleaseDC           ReleaseDC@8
 %define UpdateWindow        UpdateWindow@4
@@ -41,6 +42,8 @@ extern BitBlt@36, CreateCompatibleDC@4, CreateDIBSection@24, DeleteDC@4
 %define CreateCompatibleDC  CreateCompatibleDC@4
 %define CreateDIBSection    CreateDIBSection@24
 %define DeleteDC            DeleteDC@4
+%define GetLastError        GetLastError@0
+%define CreateBitmap        CreateBitmap@20
 
 
 

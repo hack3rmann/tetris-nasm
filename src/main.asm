@@ -3,6 +3,8 @@
 %include "lib/graphics.inc"
 %include "lib/debug/print.inc"
 
+extern printf
+
 
 section .bss align 4
     window      resb Window.sizeof
@@ -53,6 +55,10 @@ main:
 
     ; loop {
     .msg_loop_start:
+        ; window.request_redraw()
+        push window
+        call Window_request_redraw
+
         ; let (exit_code, is_exit := dl) = window.process_messages()
         push window
         call Window_process_messages
@@ -61,10 +67,6 @@ main:
         ; if is_exit { break }
         test dl, 1
         jnz .msg_loop_end
-
-        ; window.request_redraw()
-        push window
-        call Window_request_redraw
 
         jmp .msg_loop_start
     ; }
@@ -77,6 +79,8 @@ main:
     ; Window::drop(&mut window)
     push window
     call Window_drop
+
+    DEBUGLN `Exiting with code `, dword [exit_code]
 
     mov eax, dword [exit_code]
 

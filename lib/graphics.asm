@@ -31,6 +31,8 @@ ScreenImage_new:
     ; return := edi
     mov edi, dword [ebp+.return]
 
+    DEBUGLN `ScreenImage::new(`, dword [ebp+.width], `, `, dword [ebp+.height], `)`
+
     ; return.width = width
     mov eax, dword [ebp+.width]
     mov dword [edi+ScreenImage.width], eax
@@ -39,10 +41,17 @@ ScreenImage_new:
     mov edx, dword [ebp+.height]
     mov dword [edi+ScreenImage.height], edx
 
-    ; return.data_ptr = null
-    mov dword [edi+ScreenImage.data_ptr], 0
+    ; let (volume := eax) = width * height
+    mul edx
 
-    pop esi
+    ; return.data_ptr = calloc(volume, 4)
+    push 4
+    push eax
+    call calloc
+    add esp, 8
+    mov dword [edi+ScreenImage.data_ptr], eax
+
+    pop edi
     pop ebp
     ret .args_size
 
@@ -61,6 +70,13 @@ ScreenImage_drop:
 
     ; self := esi
     mov esi, dword [ebp+.self]
+
+    DEBUGLN `ScreenImage::drop(<Self at `, esi, `>)`
+
+    ; free(self.data_ptr)
+    push dword [esi+ScreenImage.data_ptr]
+    call free
+    add esp, 4
 
     pop esi
     pop ebp
@@ -91,6 +107,17 @@ ScreenImage_resize:
     ; self.height = height
     mov edx, dword [ebp+.height]
     mov dword [esi+ScreenImage.height], edx
+
+    ; let (volume := eax) = width * height
+    mul edx
+
+    ; self.data_ptr = realloc(self.data_ptr, 4 * volume)
+    shl eax, 2
+    push eax
+    push dword [esi+ScreenImage.data_ptr]
+    call realloc
+    add esp, 8
+    mov dword [esi+ScreenImage.data_ptr], eax
 
     pop esi
     pop ebp
@@ -298,6 +325,8 @@ Graphics_new:
     ; window := esi
     mov esi, dword [ebp+.window]
 
+    DEBUGLN `Graphics::new(<Window at `, esi, `>)`
+
     ; return.image = ScreenImage::new(window.width, window.height)
     push dword [esi+Window.height]
     push dword [esi+Window.width]
@@ -363,6 +392,8 @@ Graphics_drop:
     push eax
     call ScreenImage_drop
 
+    DEBUGLN `Graphics::drop(<Self at `, esi, `>)`
+
     ; DeleteDC(self.frame_device_context)
     push dword [esi+Graphics.frame_device_context]
     call DeleteDC
@@ -385,6 +416,8 @@ Graphics_window_event_listener:
     .window         equ .argbase+0
     .msg            equ .argbase+4
     .lparam         equ .argbase+12
+
+    .args_size      equ .lparam-.argbase+4
 
     ; if msg == WM_PAINT {
     cmp dword [ebp+.msg], WM_PAINT
@@ -414,7 +447,7 @@ Graphics_window_event_listener:
     .msg_is_not_WM_SIZE:
 
     pop ebp
-    ret 16
+    ret .args_size
 
 
 ; #[stdcall]
@@ -459,28 +492,6 @@ Graphics_on_redraw:
     push eax
     call ScreenImage_fill
 
-    ; graphics.image.fill_rect(200 + x, 200, 100, 100, COLOR_RGB(%color))
-    push COLOR_RGB(179, 78, 233)
-    push 100
-    push 100
-    push 200
-    mov eax, dword [x]
-    add eax, 200
-    push eax
-    lea eax, dword [ebx+Graphics.image]
-    push eax
-    call ScreenImage_fill_rect
-
-    inc dword [y]
-    cmp dword [y], 256
-    jb .y_below_256
-
-        mov dword [y], 0
-        inc dword [x]
-        and dword [x], 255
-
-    .y_below_256:
-
     ; BitBlt(device_context,
     ;        paint_desc.rcPaint.left, paint_desc.rcPaint.top,
     ;        paint_desc.rcPaint.right - paint_desc.rcPaint.left, paint_desc.rcPaint.bottom - paint_desc.rcPaint.top,
@@ -502,11 +513,33 @@ Graphics_on_redraw:
     push dword [ebp+.device_context]
     call BitBlt
 
+    ; SelectObject(graphics.frame_device_context, graphics.frame_bitmap)
+    push dword [ebx+Graphics.frame_bitmap]
+    push dword [ebx+Graphics.frame_device_context]
+    call SelectObject
+
+    ; ; BitBlt(device_context, 0, 0, window.width, window.height, graphics.frame_device_context, 0, 0, SRCCOPY)
+    ; push SRCCOPY
+    ; push 0
+    ; push 0
+    ; push dword [ebx+Graphics.frame_device_context]
+    ; push dword [esi+Window.height]
+    ; push dword [esi+Window.width]
+    ; push 0
+    ; push 0
+    ; push dword [ebp+.device_context]
+    ; call BitBlt
+
     ; EndPaint(window.hwnd, &paint_desc)
     lea eax, dword [ebp+.paint_desc]
     push eax
     push dword [esi+Window.hwnd]
     call EndPaint
+
+    ; ; ReleaseDC(window.hwnd, device_context)
+    ; push dword [ebp+.device_context]
+    ; push dword [esi+Window.hwnd]
+    ; call ReleaseDC
 
 .exit:
     add esp, .stack_size
@@ -566,6 +599,8 @@ Graphics_init_image:
     ; self := esi
     mov esi, dword [ebp+.self]
 
+    DEBUGLN `Graphics::init_image(`, dword [ebp+.width], `, `, dword [ebp+.height], `)`
+
     ; self.image.resize(width, height)
     push dword [ebp+.height]
     push dword [ebp+.width]
@@ -592,17 +627,29 @@ Graphics_init_image:
     ; }
     .self_frame_bitmap_is_null:
 
-    ; self.frame_bitmap = CreateDIBSection(null, &self.frame_bitmap_info, DIB_RGB_COLORS, &mut self.image.data_ptr, 0, 0)
-    push 0
-    push 0
-    lea eax, dword [esi+Graphics.image+ScreenImage.data_ptr]
-    push eax
-    push DIB_RGB_COLORS
-    lea eax, dword [esi+Graphics.frame_bitmap_info]
-    push eax
-    push 0
-    call CreateDIBSection
+    ; ; self.frame_bitmap = CreateDIBSection(null, &self.frame_bitmap_info, DIB_RGB_COLORS, &mut self.image.data_ptr, 0, 0)
+    ; push 0
+    ; push 0
+    ; lea eax, dword [esi+Graphics.image+ScreenImage.data_ptr]
+    ; push eax
+    ; push DIB_RGB_COLORS
+    ; lea eax, dword [esi+Graphics.frame_bitmap_info]
+    ; push eax
+    ; push 0
+    ; call CreateDIBSection
+    ; mov dword [esi+Graphics.frame_bitmap], eax
+
+    ; self.frame_bitmap = CreateBitmap(width, height, 1, 32, self.image.data_ptr)
+    push dword [esi+Graphics.image+ScreenImage.data_ptr]
+    push 32
+    push 1
+    push dword [ebp+.height]
+    push dword [ebp+.width]
+    call CreateBitmap
     mov dword [esi+Graphics.frame_bitmap], eax
+
+    DEBUGLN `frame_device_context = `, dword [esi+Graphics.frame_device_context]
+    DEBUGLN `frame_bitmap = `, dword [esi+Graphics.frame_bitmap]
 
     ; SelectObject(self.frame_device_context, self.frame_bitmap)
     push dword [esi+Graphics.frame_bitmap]

@@ -22,6 +22,8 @@ Keyboard_new:
     .argbase        equ 12
     .return         equ .argbase+0
 
+    DEBUGLN `Keyboard::new()`
+
     ; return := edi
     mov edi, dword [ebp+.return]
 

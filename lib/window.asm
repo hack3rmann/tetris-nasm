@@ -109,6 +109,8 @@ Window_new:
     ; return := edi
     mov edi, dword [ebp+.return]
 
+    DEBUGLN `Window::new(<name at `, dword [ebp+.name], `>, `, dword [ebp+.width], `, `, dword [ebp+.height], `)`
+
     ; return.class = Self::WindowClass::new(Self::CLASS_NAME)
     push Window_CLASS_NAME
     lea eax, [edi+Window.class]
@@ -144,7 +146,7 @@ Window_new:
     push WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU
     lea eax, dword [ebp+.rect]
     push eax
-    call AdjuctWindowRect
+    call AdjustWindowRect
 
     ; return.hwnd = CreateWindow(
     ;     0,
@@ -212,6 +214,8 @@ Window_drop:
     lea eax, dword [esi+Window.subscribers]
     push eax
     call Vec32_drop
+
+    DEBUGLN `Window::drop(<Self at `, esi, `>)`
 
     ; DestroyWindow(self.hwnd)
     push dword [edi+Window.hwnd]
