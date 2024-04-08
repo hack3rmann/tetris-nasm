@@ -23,9 +23,6 @@ extern ScreenImage_set_pixel, ScreenImage_fill_rect, ScreenImage_fill
 
 struc Graphics
     .image                  resb ScreenImage.sizeof
-    .frame_bitmap_info      resb BITMAPINFO.sizeof
-    .frame_bitmap           resd 1 ; : HBITMAP
-    .frame_device_context   resd 1 ; : HDC
     .sizeof                 equ $-.image
 endstruc
 
