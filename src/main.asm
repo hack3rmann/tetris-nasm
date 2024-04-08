@@ -13,6 +13,11 @@ section .bss align 4
 
 section .data align 4
     exit_code   dd 0
+    x dd 0.0
+    y dd 0.0
+    vel_x dd 0.05
+    vel_y dd 0.05
+    size dd 1.0
 
 section .rodata align 4
     window_name db "Tetris", 0, 0
@@ -67,6 +72,67 @@ main:
         ; if is_exit { break }
         test dl, 1
         jnz .msg_loop_end
+
+        ; if keyboard.is_pressed('W') {
+        push "W"
+        push keyboard
+        call Keyboard_is_pressed
+        test al, al
+        jz .keyboard_W_is_not_pressed
+
+            ; y += vel_y
+            fld dword [y]
+            fadd dword [vel_y]
+            fstp dword [y]
+        ; }
+        .keyboard_W_is_not_pressed:
+
+        ; if keyboard.is_pressed('S') {
+        push "S"
+        push keyboard
+        call Keyboard_is_pressed
+        test al, al
+        jz .keyboard_S_is_not_pressed
+
+            ; y -= vel_y
+            fld dword [y]
+            fsub dword [vel_y]
+            fstp dword [y]
+        ; }
+        .keyboard_S_is_not_pressed:
+
+        ; if keyboard.is_pressed('D') {
+        push "D"
+        push keyboard
+        call Keyboard_is_pressed
+        test al, al
+        jz .keyboard_D_is_not_pressed
+
+            ; x += vel_x
+            fld dword [x]
+            fadd dword [vel_x]
+            fstp dword [x]
+        ; }
+        .keyboard_D_is_not_pressed:
+
+        ; if keyboard.is_pressed('A') {
+        push "A"
+        push keyboard
+        call Keyboard_is_pressed
+        test al, al
+        jz .keyboard_A_is_not_pressed
+
+            ; x -= vel_x
+            fld dword [x]
+            fsub dword [vel_x]
+            fstp dword [x]
+        ; }
+        .keyboard_A_is_not_pressed:
+
+        ; move(x, y)
+        push dword [y]
+        push dword [x]
+        call move
 
         jmp .msg_loop_start
     ; }

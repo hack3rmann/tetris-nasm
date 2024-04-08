@@ -9,8 +9,35 @@ extern calloc, realloc, free
 
 section .data align 4
     Graphics_GLOBAL_PTR dd 0
+    x dd 0
+    y dd 0
 
 section .text
+
+; #[stdcall]
+; fn move(x: f32, y: f32)
+move:
+    push ebp
+    mov ebp, esp
+
+    .argbase        equ 8
+    .x              equ .argbase+0
+    .y              equ .argbase+4
+
+    .args_size      equ .y-.argbase+4
+
+    ; ::x = x as i32
+    fld dword [ebp+.x]
+    fistp dword [x]
+
+    ; ::y = y as i32
+    fld dword [ebp+.y]
+    fistp dword [y]
+
+    pop ebp
+    ret .args_size
+
+
 
 ; #[stdcall]
 ; fn ScreenImage::new(width: u32, height: u32) -> Self
@@ -36,18 +63,56 @@ ScreenImage_new:
     mov dword [edi+ScreenImage.width], eax
 
     ; return.height = height
-    mov edx, dword [ebp+.height]
-    mov dword [edi+ScreenImage.height], edx
+    mov eax, dword [ebp+.height]
+    mov dword [edi+ScreenImage.height], eax
+    
+    ; return.device_context = CreateCompatibleDC(null)
+    push 0
+    call CreateCompatibleDC
+    mov dword [edi+ScreenImage.device_context], eax
 
-    ; let (volume := eax) = width * height
-    mul edx
+    ; return.bitmap_info = mem::zeroed()
+    MEM_ZEROED BITMAPINFO, edi+ScreenImage.bitmap_info
 
-    ; return.data_ptr = calloc(volume, 4)
-    push 4
+    ; return.bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER)
+    mov dword [edi+ScreenImage.bitmap_info \
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biSize], BITMAPINFOHEADER.sizeof
+
+    ; return.bitmap_info.bmiHeader.biPlanes = 1
+    mov dword [edi+ScreenImage.bitmap_info \
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biPlanes], 1
+    
+    ; return.bitmap_info.bmiHeader.biBitCount = 32
+    mov dword [edi+ScreenImage.bitmap_info \
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biBitCount], 32
+
+    ; return.bitmap_info.bmiHeader.biCompression = BI_RGB
+    mov dword [edi+ScreenImage.bitmap_info \
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biCompression], BI_RGB
+    
+    ; return.bitmap_info.bmiHeader.biWidth = width
+    mov eax, dword [ebp+.width]
+    mov dword [edi+ScreenImage.bitmap_info \
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biWidth], eax
+
+    ; return.bitmap_info.bmiHeader.biHeight = height
+    mov eax, dword [ebp+.height]
+    mov dword [edi+ScreenImage.bitmap_info \
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biHeight], eax
+
+    ; return.bitmap = CreateDIBSection(
+    ;     return.device_context, &return.bitmap_info,
+    ;     DIB_RGB_COLORS, &mut return.data_ptr, 0, 0)
+    push 0
+    push 0
+    lea eax, dword [edi+ScreenImage.data_ptr]
     push eax
-    call calloc
-    add esp, 8
-    mov dword [edi+ScreenImage.data_ptr], eax
+    push DIB_RGB_COLORS
+    lea eax, dword [edi+ScreenImage.bitmap_info]
+    push eax
+    push dword [edi+ScreenImage.device_context]
+    call CreateDIBSection
+    mov dword [edi+ScreenImage.bitmap], eax
 
     pop edi
     pop ebp
@@ -71,10 +136,13 @@ ScreenImage_drop:
 
     DEBUGLN `ScreenImage::drop(<Self at `, esi, `>)`
 
-    ; free(self.data_ptr)
-    push dword [esi+ScreenImage.data_ptr]
-    call free
-    add esp, 4
+    ; DeleteObject(self.bitmap)
+    push dword [esi+ScreenImage.bitmap]
+    call DeleteObject
+
+    ; DeleteDC(self.device_context)
+    push dword [esi+ScreenImage.device_context]
+    call DeleteDC
 
     pop esi
     pop ebp
@@ -105,17 +173,34 @@ ScreenImage_resize:
     ; self.height = height
     mov edx, dword [ebp+.height]
     mov dword [esi+ScreenImage.height], edx
+    
+    ; self.bitmap_info.bmiHeader.biWidth = width
+    mov eax, dword [ebp+.width]
+    mov dword [esi+ScreenImage.bitmap_info\
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biWidth], eax
 
-    ; let (volume := eax) = width * height
-    mul edx
+    ; self.bitmap_info.bmiHeader.biHeight = height
+    mov eax, dword [ebp+.height]
+    mov dword [esi+ScreenImage.bitmap_info\
+        +BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biHeight], eax
 
-    ; self.data_ptr = realloc(self.data_ptr, 4 * volume)
-    shl eax, 2
+    ; DeleteObject(self.bitmap)
+    push dword [esi+ScreenImage.bitmap]
+    call DeleteObject
+
+    ; self.bitmap = CreateDIBSection(
+    ;     self.device_context, &self.bitmap_info,
+    ;     DIB_RGB_COLORS, &mut self.data_ptr, 0, 0)
+    push 0
+    push 0
+    lea eax, dword [esi+ScreenImage.data_ptr]
     push eax
-    push dword [esi+ScreenImage.data_ptr]
-    call realloc
-    add esp, 8
-    mov dword [esi+ScreenImage.data_ptr], eax
+    push DIB_RGB_COLORS
+    lea eax, dword [esi+ScreenImage.bitmap_info]
+    push eax
+    push dword [esi+ScreenImage.device_context]
+    call CreateDIBSection
+    mov dword [esi+ScreenImage.bitmap], eax
 
     pop esi
     pop ebp
@@ -140,14 +225,14 @@ ScreenImage_set_pixel:
     ; self := esi
     mov esi, dword [ebp+.self]
 
-    ; if row >= self.width { return }
+    ; if row >= self.height { return }
     mov eax, dword [ebp+.row]
-    cmp eax, dword [esi+ScreenImage.width]
+    cmp eax, dword [esi+ScreenImage.height]
     jnb .exit
 
-    ; if col >= self.height { return }
+    ; if col >= self.width { return }
     mov eax, dword [ebp+.col]
-    cmp eax, dword [esi+ScreenImage.height]
+    cmp eax, dword [esi+ScreenImage.width]
     jnb .exit
 
     ; if self.data_ptr.is_null() { return }
@@ -302,17 +387,77 @@ ScreenImage_fill:
     ret .args_size
 
 
+; #[stdcall]
+; ScreenImage::show(&self, window: &Window)
+ScreenImage_show:
+    push ebp
+    push esi
+    push ebx
+    mov ebp, esp
 
-section .bss align 4
-    hdc             resd 1
-    mem_hdc         resd 1
-    bitmap          resd 1
-    bitmap_info     resb BITMAPINFO.sizeof
-    pixels          resd 1
-    paint           resb PAINTSTRUCT.sizeof
-    prev_object     resd 1
+    .paint          equ -PAINTSTRUCT.sizeof - 8
+    .prev_object    equ -8
+    .mem_hdc        equ -4
 
-section .text
+    .argbase        equ 16
+    .self           equ .argbase+0
+    .window         equ .argbase+4
+
+    .args_size      equ .window-.argbase+4
+    .stack_size     equ -.paint
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; window := ebx
+    mov ebx, dword [ebp+.window]
+
+    ; mem_hdc = BeginPaint(window.hwnd, &mut paint)
+    lea eax, dword [ebp+.paint]
+    push eax
+    push dword [ebx+Window.hwnd]
+    call BeginPaint
+    mov dword [ebp+.mem_hdc], eax
+
+    ; prev_object = SelectObject(self.device_context, self.bitmap)
+    push dword [esi+ScreenImage.bitmap]
+    push dword [esi+ScreenImage.device_context]
+    call SelectObject
+    mov dword [ebp+.prev_object], eax
+
+    ; BitBlt(mem_hdc, 0, 0, window.width, window.height,
+    ;     self.device_context, 0, 0, SRCCOPY)
+    push SRCCOPY
+    push 0
+    push 0
+    push dword [esi+ScreenImage.device_context]
+    push dword [ebx+Window.height]
+    push dword [ebx+Window.width]
+    push 0
+    push 0
+    push dword [ebp+.mem_hdc]
+    call BitBlt
+
+    ; SelectObject(self.device_context, prev_object)
+    push dword [ebp+.prev_object]
+    push dword [esi+ScreenImage.device_context]
+    call SelectObject
+
+    ; EndPaint(window.hwnd, &paint)
+    lea eax, dword [ebp+.paint]
+    push eax
+    push dword [ebx+Window.hwnd]
+    call EndPaint
+
+    add esp, .stack_size
+
+    pop ebx
+    pop esi
+    pop ebp
+    ret .args_size
+
 
 
 ; #[stdcall]
@@ -337,63 +482,15 @@ Graphics_new:
 
     DEBUGLN `Graphics::new(<Window at `, esi, `>)`
 
+    ; Self::GLOBAL_PTR = edi
+    mov dword [Graphics_GLOBAL_PTR], edi
+
     ; return.image = ScreenImage::new(window.width, window.height)
     push dword [esi+Window.height]
     push dword [esi+Window.width]
     lea eax, dword [edi+Graphics.image]
     push eax
     call ScreenImage_new
-
-    ; Self::GLOBAL_PTR = edi
-    mov dword [Graphics_GLOBAL_PTR], edi
-
-    ; return.init_image(window.width, window.height)
-    push dword [esi+Window.height]
-    push dword [esi+Window.width]
-    push edi
-    call Graphics_init_image
-
-    ; FIXME: ------------------------------->
-    
-    ; hdc = CreateCompatibleDC(null)
-    push 0
-    call CreateCompatibleDC
-    mov dword [hdc], eax
-
-    ; bitmap_info = mem::zeroed()
-    MEM_ZEROED BITMAPINFO, bitmap_info
-
-    ; bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER)
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biSize], BITMAPINFOHEADER.sizeof
-
-    ; bitmap_info.bmiHeader.biPlanes = 1
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biPlanes], 1
-    
-    ; bitmap_info.bmiHeader.biBitCount = 32
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biBitCount], 32
-
-    ; bitmap_info.bmiHeader.biCompression = BI_RGB
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biCompression], BI_RGB
-    
-    ; bitmap_info.bmiHeader.biWidth = window.width
-    mov eax, dword [esi+Window.width]
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biWidth], eax
-
-    ; bitmap_info.bmiHeader.biHeight = window.height
-    mov eax, dword [esi+Window.height]
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biHeight], eax
-
-    ; bitmap = CreateDIBSection(hdc, &bitmap_info, DIB_RGB_COLORS, &mut pixels, 0, 0)
-    push 0
-    push 0
-    push pixels
-    push DIB_RGB_COLORS
-    push bitmap_info
-    push dword [hdc]
-    call CreateDIBSection
-    mov dword [bitmap], eax
-
-    ; -------------------------------------->
 
     pop edi
     pop esi
@@ -425,18 +522,6 @@ Graphics_drop:
 
     ; Self::GLOBAL_PTR = null
     mov dword [Graphics_GLOBAL_PTR], 0
-
-    ; FIXME: ----------------------------------->
-
-    ; DeleteObject(bitmap)
-    push dword [bitmap]
-    call DeleteObject
-    
-    ; DeleteDC(hdc)
-    push dword [hdc]
-    call DeleteDC
-
-    ; ------------------------------------------>
 
     pop esi
     pop ebp
@@ -519,58 +604,27 @@ Graphics_on_redraw:
     ; self := esi
     mov esi, dword [ebp+.self]
 
-    ; FIXME: -------------------------------------------->
+    ; self.image.fill(RGB(%color))
+    push RGB(26, 27, 38)
+    lea eax, dword [esi+Graphics.image]
+    push eax
+    call ScreenImage_fill
 
-    cmp dword [pixels], 0
-    je .skip_drawing
-    mov ecx, dword [pixels]
-    %assign row 100
-    %rep 100
-        %assign col 100
-        %rep 100
-            %assign idx row*640+col
-            mov dword [ecx+4*idx], COLOR_RGB(50, 50, 50)
-        %assign col col+1
-        %endrep
-    %assign row row+1
-    %endrep
-    .skip_drawing:
-    
-    ; mem_hdc = BeginPaint(window.hwnd, &mut paint)
-    push paint
-    push dword [ebx+Window.hwnd]
-    call BeginPaint
-    mov dword [mem_hdc], eax
+    ; self.image.fill_rect(x, y, 100, 100, RGB(%color))
+    push RGB(213, 81, 113)
+    push 100
+    push 100
+    push dword [y]
+    push dword [x]
+    lea eax, dword [esi+Graphics.image]
+    push eax
+    call ScreenImage_fill_rect
 
-    ; prev_object = SelectObject(hdc, bitmap)
-    push dword [bitmap]
-    push dword [hdc]
-    call SelectObject
-    mov dword [prev_object], eax
-
-    ; BitBlt(mem_hdc, 0, 0, window.width, window.height, hdc, 0, 0, SRCCOPY)
-    push SRCCOPY
-    push 0
-    push 0
-    push dword [hdc]
-    push dword [ebx+Window.height]
-    push dword [ebx+Window.width]
-    push 0
-    push 0
-    push dword [mem_hdc]
-    call BitBlt
-
-    ; SelectObject(hdc, prev_object)
-    push dword [prev_object]
-    push dword [hdc]
-    call SelectObject
-
-    ; EndPaint(window.hwnd, &paint)
-    push paint
-    push dword [ebx+Window.hwnd]
-    call EndPaint
-
-    ; --------------------------------------------------->
+    ; self.image.show(window)
+    push ebx
+    lea eax, dword [esi+Graphics.image]
+    push eax
+    call ScreenImage_show
 
 .exit:
     pop ebx
@@ -596,61 +650,13 @@ Graphics_on_window_resize:
     ; self := esi
     mov esi, dword [ebp+.self]
 
-    ; self.init_image(width, height)
+    ; self.image.resize(width, height)
     push dword [ebp+.height]
-    push dword [ebp+.width]    
+    push dword [ebp+.width]
     push esi
-    call Graphics_init_image
-    
-    ; bitmap_info.bmiHeader.biWidth = width
-    mov eax, dword [ebp+.width]
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biWidth], eax
-
-    ; bitmap_info.bmiHeader.biHeight = height
-    mov eax, dword [ebp+.height]
-    mov dword [bitmap_info+BITMAPINFO.bmiHeader+BITMAPINFOHEADER.biHeight], eax
-
-    ; DeleteObject(bitmap)
-    push dword [bitmap]
-    call DeleteObject
-
-    ; bitmap = CreateDIBSection(hdc, &bitmap_info, DIB_RGB_COLORS, &mut pixels, 0, 0)
-    push 0
-    push 0
-    push pixels
-    push DIB_RGB_COLORS
-    push bitmap_info
-    push dword [hdc]
-    call CreateDIBSection
-    mov dword [bitmap], eax
+    call ScreenImage_resize
 
 .exit:
-    pop esi
-    pop ebp
-    ret .args_size
-
-
-; #[stdcall]
-; fn Graphics::init_image(&mut self, width: u32, height: u32)
-Graphics_init_image:
-    push ebp
-    push esi
-    mov ebp, esp
-
-    .argbase        equ 12
-    .self           equ .argbase+0
-    .width          equ .argbase+4
-    .height         equ .argbase+8
-
-    .args_size      equ .height-.argbase+4
-
-    ; self := esi
-    mov esi, dword [ebp+.self]
-
-    DEBUGLN `Graphics::init_image(`, dword [ebp+.width], `, `, dword [ebp+.height], `)`
-
-    
-
     pop esi
     pop ebp
     ret .args_size
