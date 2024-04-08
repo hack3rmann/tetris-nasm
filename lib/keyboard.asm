@@ -22,6 +22,8 @@ Keyboard_new:
     .argbase        equ 12
     .return         equ .argbase+0
 
+    .args_size      equ .return-.argbase+4
+
     DEBUGLN `Keyboard::new()`
 
     ; return := edi
@@ -35,7 +37,7 @@ Keyboard_new:
 
     pop edi
     pop ebp
-    ret 4
+    ret .args_size
 
 
 ; #[stdcall]
@@ -47,6 +49,8 @@ Keyboard_on_key_down:
 
     .argbase        equ 12
     .key_code       equ .argbase+4
+
+    .args_size      equ .key_code-.argbase+4
 
     ; let (keyboard := edi) = Self::GLOBAL_KEYBOARD_PTR
     mov edi, dword [Keyboard_GLOBAL_KEYBOARD_PTR]
@@ -63,7 +67,7 @@ Keyboard_on_key_down:
 .exit:
     pop edi
     pop ebp
-    ret 8
+    ret .args_size
 
 
 ; #[stdcall]
@@ -75,6 +79,8 @@ Keyboard_on_key_up:
 
     .argbase        equ 12
     .key_code       equ .argbase+4
+
+    .args_size      equ .key_code-.argbase+4
 
     ; let (keyboard := edi) = Self::GLOBAL_KEYBOARD_PTR
     mov edi, dword [Keyboard_GLOBAL_KEYBOARD_PTR]
@@ -91,7 +97,7 @@ Keyboard_on_key_up:
 .exit:
     pop edi
     pop ebp
-    ret 8
+    ret .args_size
 
 
 ; #[stdcall]

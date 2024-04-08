@@ -11,39 +11,40 @@ extern GetMessageA@16, AdjustWindowRect@12, GetDC@4, ReleaseDC@8
 extern UpdateWindow@4, CreateSolidBrush@4, DeleteObject@4, SelectObject@8
 extern PatBlt@24, InvalidateRect@12, BeginPaint@8, EndPaint@8
 extern BitBlt@36, CreateCompatibleDC@4, CreateDIBSection@24, DeleteDC@4
-extern GetLastError@0, CreateBitmap@20
+extern GetLastError@0, CreateBitmap@20, CreateCompatibleBitmap@12
 
-%define GetModuleHandle     GetModuleHandleA@4
-%define RegisterClass       RegisterClassA@4
-%define CreateWindow        CreateWindowExA@48
-%define ShowWindow          ShowWindow@8
-%define DefWindowProc       DefWindowProcA@16
-%define UnregisterClass     UnregisterClassA@8
-%define DestroyWindow       DestroyWindow@4
-%define SetWindowLong       SetWindowLongA@12
-%define GetWindowLong       GetWindowLongA@8
-%define PostQuitMessage     PostQuitMessage@4
-%define PeekMessage         PeekMessageA@20
-%define TranslateMessage    TranslateMessage@4
-%define DispatchMessage     DispatchMessageA@4
-%define GetMessage          GetMessageA@16
-%define AdjustWindowRect    AdjustWindowRect@12
-%define GetDC               GetDC@4
-%define ReleaseDC           ReleaseDC@8
-%define UpdateWindow        UpdateWindow@4
-%define CreateSolidBrush    CreateSolidBrush@4
-%define DeleteObject        DeleteObject@4
-%define SelectObject        SelectObject@8
-%define PatBlt              PatBlt@24
-%define InvalidateRect      InvalidateRect@12
-%define BeginPaint          BeginPaint@8
-%define EndPaint            EndPaint@8
-%define BitBlt              BitBlt@36
-%define CreateCompatibleDC  CreateCompatibleDC@4
-%define CreateDIBSection    CreateDIBSection@24
-%define DeleteDC            DeleteDC@4
-%define GetLastError        GetLastError@0
-%define CreateBitmap        CreateBitmap@20
+%define GetModuleHandle         GetModuleHandleA@4
+%define RegisterClass           RegisterClassA@4
+%define CreateWindow            CreateWindowExA@48
+%define ShowWindow              ShowWindow@8
+%define DefWindowProc           DefWindowProcA@16
+%define UnregisterClass         UnregisterClassA@8
+%define DestroyWindow           DestroyWindow@4
+%define SetWindowLong           SetWindowLongA@12
+%define GetWindowLong           GetWindowLongA@8
+%define PostQuitMessage         PostQuitMessage@4
+%define PeekMessage             PeekMessageA@20
+%define TranslateMessage        TranslateMessage@4
+%define DispatchMessage         DispatchMessageA@4
+%define GetMessage              GetMessageA@16
+%define AdjustWindowRect        AdjustWindowRect@12
+%define GetDC                   GetDC@4
+%define ReleaseDC               ReleaseDC@8
+%define UpdateWindow            UpdateWindow@4
+%define CreateSolidBrush        CreateSolidBrush@4
+%define DeleteObject            DeleteObject@4
+%define SelectObject            SelectObject@8
+%define PatBlt                  PatBlt@24
+%define InvalidateRect          InvalidateRect@12
+%define BeginPaint              BeginPaint@8
+%define EndPaint                EndPaint@8
+%define BitBlt                  BitBlt@36
+%define CreateCompatibleDC      CreateCompatibleDC@4
+%define CreateDIBSection        CreateDIBSection@24
+%define DeleteDC                DeleteDC@4
+%define GetLastError            GetLastError@0
+%define CreateBitmap            CreateBitmap@20
+%define CreateCompatibleBitmap  CreateCompatibleBitmap@12
 
 
 
