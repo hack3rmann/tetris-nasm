@@ -12,6 +12,7 @@ extern UpdateWindow@4, CreateSolidBrush@4, DeleteObject@4, SelectObject@8
 extern PatBlt@24, InvalidateRect@12, BeginPaint@8, EndPaint@8
 extern BitBlt@36, CreateCompatibleDC@4, CreateDIBSection@24, DeleteDC@4
 extern GetLastError@0, CreateBitmap@20, CreateCompatibleBitmap@12
+extern LoadImageA@24
 
 %define GetModuleHandle         GetModuleHandleA@4
 %define RegisterClass           RegisterClassA@4
@@ -45,6 +46,7 @@ extern GetLastError@0, CreateBitmap@20, CreateCompatibleBitmap@12
 %define GetLastError            GetLastError@0
 %define CreateBitmap            CreateBitmap@20
 %define CreateCompatibleBitmap  CreateCompatibleBitmap@12
+%define LoadImage               LoadImageA@24
 
 
 
@@ -88,6 +90,10 @@ extern GetLastError@0, CreateBitmap@20, CreateCompatibleBitmap@12
 %define BI_RGB              0x00000000
 
 %define DIB_RGB_COLORS      0x00000000
+
+%define IMAGE_ICON          1
+
+%define LR_LOADFROMFILE     0x10
 
 
 

@@ -3,10 +3,6 @@
 %include "lib/debug/print.inc"
 
 
-section .rodata align 4
-    Window_CLASS_NAME db "window_class", 0, 0, 0, 0
-
-
 section .text
 
 ; #[stdcall]
@@ -15,14 +11,43 @@ WindowClass_new:
     push ebp
     push edi
     mov ebp, esp
-
-    .desc       equ -WNDCLASSA.sizeof
     
-    .argbase    equ 12
-    .return     equ .argbase+0
-    .name       equ .argbase+4
+    .argbase        equ 12
+    .return         equ .argbase+0
+    .name           equ .argbase+4
 
-    .stack_size equ -.desc
+    .args_size      equ .name-.argbase+4
+
+    ; Self
+    mov edi, dword [ebp+.return]
+
+    ; return = Self::with_icon(name, Self::DEFAULT_ICON_PATH)
+    push Window_DEFAULT_ICON_PATH
+    push dword [ebp+.name]
+    push edi
+    call WindowClass_with_icon
+
+    pop edi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn WindowClass::with_icon(name: *const u8, icon_path: *const u8) -> Self
+WindowClass_with_icon:
+    push ebp
+    push edi
+    mov ebp, esp
+
+    .desc           equ -WNDCLASSA.sizeof
+
+    .argbase        equ 12
+    .return         equ .argbase+0
+    .name           equ .argbase+4
+    .icon_path      equ .argbase+8
+
+    .args_size      equ .icon_path-.argbase+4
+    .stack_size     equ -.desc
 
     sub esp, .stack_size
 
@@ -51,6 +76,22 @@ WindowClass_new:
     ; desc.style = CS_OWNDC
     mov dword [ebp+.desc+WNDCLASSA.style], CS_OWNDC
 
+    ; if !icon_path.is_null() {
+    cmp dword [ebp+.icon_path], 0
+    je .icon_path_is_null
+
+        ; desc.hIcon = LoadImage(return.hinstance, icon_path, IMAGE_ICON, 64, 64, 0)
+        push LR_LOADFROMFILE
+        push 64
+        push 64
+        push IMAGE_ICON
+        push dword [ebp+.icon_path]
+        push dword [edi+WindowClass.hinstance]
+        call LoadImage
+        mov dword [ebp+.desc+WNDCLASSA.hIcon], eax
+    ; }
+    .icon_path_is_null:
+
     ; RegisterClass(&desc)
     lea eax, dword [ebp+.desc]
     push eax
@@ -60,7 +101,7 @@ WindowClass_new:
 
     pop edi
     pop ebp
-    ret 8
+    ret .args_size
 
 
 ; #[stdcall]
@@ -344,6 +385,23 @@ Window__window_procedure:
 
     ; }
     .msg_is_not_WM_CLOSE:
+
+    ; if msg == WM_SIZE {
+    cmp dword [ebp+.msg], WM_SIZE
+    jne .msg_is_not_WM_SIZE
+    
+        ; window.width = lparam & 0xFFFF
+        mov eax, dword [ebp+.lparam]
+        and eax, 0xFFFF
+        mov dword [esi+Window.width], eax
+
+        ; window.height = lparam >> 16
+        mov eax, dword [ebp+.lparam]
+        shr eax, 16
+        mov dword [esi+Window.height], eax
+
+    ; }
+    .msg_is_not_WM_SIZE:
 
     ; return DefWindowProc(hwnd, msg, wparam, lparam)
     push dword [ebp+.lparam]

@@ -6,13 +6,19 @@
 
 
 
+section .rodata align 4
+    Window_CLASS_NAME               db "window_class", 0, 0, 0, 0
+    Window_DEFAULT_ICON_PATH        db "assets/icon.ico", 0
+
+
+
 struc WindowClass
     .hinstance  resd 1
     .name       resd 1
     .sizeof     equ $-.hinstance
 endstruc
 
-extern WindowClass_new, WindowClass_drop
+extern WindowClass_new, WindowClass_drop, WindowClass_with_icon
 
 
 

@@ -26,8 +26,8 @@ extern ScreenImage_show
 
 
 struc Graphics
-    .image                  resb ScreenImage.sizeof
-    .sizeof                 equ $-.image
+    .image              resb ScreenImage.sizeof
+    .sizeof             equ $-.image
 endstruc
 
 extern move
