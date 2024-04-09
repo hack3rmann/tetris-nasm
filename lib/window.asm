@@ -185,8 +185,7 @@ Window_new:
 
     ; window_style = %style
     mov dword [ebp+.window_style], \
-        WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU \
-            | WS_SIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE
+        WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU | WS_VISIBLE
 
     ; AdjustWindowRect(&mut rect, window_style, FALSE)
     push 0

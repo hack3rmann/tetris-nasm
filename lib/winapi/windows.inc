@@ -12,7 +12,7 @@ extern UpdateWindow@4, CreateSolidBrush@4, DeleteObject@4, SelectObject@8
 extern PatBlt@24, InvalidateRect@12, BeginPaint@8, EndPaint@8
 extern BitBlt@36, CreateCompatibleDC@4, CreateDIBSection@24, DeleteDC@4
 extern GetLastError@0, CreateBitmap@20, CreateCompatibleBitmap@12
-extern LoadImageA@24
+extern LoadImageA@24, GetTickCount@0
 
 %define GetModuleHandle         GetModuleHandleA@4
 %define RegisterClass           RegisterClassA@4
@@ -47,6 +47,7 @@ extern LoadImageA@24
 %define CreateBitmap            CreateBitmap@20
 %define CreateCompatibleBitmap  CreateCompatibleBitmap@12
 %define LoadImage               LoadImageA@24
+%define GetTickCount            GetTickCount@0
 
 
 

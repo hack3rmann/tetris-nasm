@@ -10,14 +10,19 @@ section .bss align 4
     window      resb Window.sizeof
     keyboard    resb Keyboard.sizeof
     graphics    resb Graphics.sizeof
+    prev_time   resd 1
+    duration    resd 1
+    dx_         resd 1
+    dy_         resd 1
 
 section .data align 4
     exit_code   dd 0
     x dd 0.0
     y dd 0.0
-    vel_x dd 0.05
-    vel_y dd 0.05
+    vel_x dd 100.0
+    vel_y dd 100.0
     size dd 1.0
+    n_milliseconds_in_second dd 1_000.0
 
 section .rodata align 4
     window_name db "Tetris", 0, 0
@@ -58,6 +63,10 @@ main:
     push window
     call Window_add_event_listener
 
+    ; prev_time = GetTickCount()
+    call GetTickCount
+    mov dword [prev_time], eax
+
     ; loop {
     .msg_loop_start:
         ; window.request_redraw()
@@ -73,6 +82,30 @@ main:
         test dl, 1
         jnz .msg_loop_end
 
+        ; let (instant := eax) = GetTickCount()
+        call GetTickCount
+
+        ; duration = instant - prev_time
+        sub eax, dword [prev_time]
+        mov dword [duration], eax
+
+        ; prev_time += duration
+        add dword [prev_time], eax
+
+        ; dx_ = vel_x * (duration as f32) / 1_000.0
+        fld dword [vel_x]
+        fild dword [duration]
+        fmulp
+        fdiv dword [n_milliseconds_in_second]
+        fstp dword [dx_]
+
+        ; dy_ = vel_y * (duration as f32) / 1_000.0
+        fld dword [vel_y]
+        fild dword [duration]
+        fmulp
+        fdiv dword [n_milliseconds_in_second]
+        fstp dword [dy_]
+
         ; if keyboard.is_pressed('W') {
         push "W"
         push keyboard
@@ -80,9 +113,9 @@ main:
         test al, al
         jz .keyboard_W_is_not_pressed
 
-            ; y += vel_y
+            ; y += dy_
             fld dword [y]
-            fadd dword [vel_y]
+            fadd dword [dy_]
             fstp dword [y]
         ; }
         .keyboard_W_is_not_pressed:
@@ -94,9 +127,9 @@ main:
         test al, al
         jz .keyboard_S_is_not_pressed
 
-            ; y -= vel_y
+            ; y -= dy_
             fld dword [y]
-            fsub dword [vel_y]
+            fsub dword [dy_]
             fstp dword [y]
         ; }
         .keyboard_S_is_not_pressed:
@@ -108,9 +141,9 @@ main:
         test al, al
         jz .keyboard_D_is_not_pressed
 
-            ; x += vel_x
+            ; x += dx_
             fld dword [x]
-            fadd dword [vel_x]
+            fadd dword [dx_]
             fstp dword [x]
         ; }
         .keyboard_D_is_not_pressed:
@@ -122,9 +155,9 @@ main:
         test al, al
         jz .keyboard_A_is_not_pressed
 
-            ; x -= vel_x
+            ; x -= dx_
             fld dword [x]
-            fsub dword [vel_x]
+            fsub dword [dx_]
             fstp dword [x]
         ; }
         .keyboard_A_is_not_pressed:
