@@ -114,6 +114,9 @@ ScreenImage_new:
     call CreateDIBSection
     mov dword [edi+ScreenImage.bitmap], eax
 
+    ; return.changed = false
+    mov byte [edi+ScreenImage.changed], 0
+
     pop edi
     pop ebp
     ret .args_size
@@ -202,6 +205,9 @@ ScreenImage_resize:
     call CreateDIBSection
     mov dword [esi+ScreenImage.bitmap], eax
 
+    ; self.changed = true
+    mov byte [esi+ScreenImage.changed], 1
+
     pop esi
     pop ebp
     ret .args_size
@@ -250,6 +256,9 @@ ScreenImage_set_pixel:
     add eax, dword [esi+ScreenImage.data_ptr]
     mov edx, dword [ebp+.value]
     mov dword [eax], edx
+
+    ; self.changed = true
+    mov byte [esi+ScreenImage.changed], 1
 
 .exit:
     pop esi
@@ -380,6 +389,9 @@ ScreenImage_fill:
     ; }
     .while_ptr_is_not_end_end:
 
+    ; self.changed = true
+    mov byte [esi+ScreenImage.changed], 1
+
 .exit:
     pop edi
     pop esi
@@ -413,6 +425,10 @@ ScreenImage_show:
 
     ; window := ebx
     mov ebx, dword [ebp+.window]
+
+    ; if !self.changed { return }
+    cmp byte [esi+ScreenImage.changed], 0
+    je .exit
 
     ; mem_hdc = BeginPaint(window.hwnd, &mut paint)
     lea eax, dword [ebp+.paint]
@@ -451,6 +467,10 @@ ScreenImage_show:
     push dword [ebx+Window.hwnd]
     call EndPaint
 
+    ; self.changed = false
+    mov byte [esi+ScreenImage.changed], 0
+
+.exit:
     add esp, .stack_size
 
     pop ebx

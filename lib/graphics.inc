@@ -15,6 +15,8 @@ struc ScreenImage
     .data_ptr           resd 1
     .device_context     resd 1
     .bitmap             resd 1
+    .changed            resb 1
+    ._padding           resb 3
     .bitmap_info        resb BITMAPINFO.sizeof
     .sizeof             equ $-.width
 endstruc

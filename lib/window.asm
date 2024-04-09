@@ -80,7 +80,7 @@ WindowClass_with_icon:
     cmp dword [ebp+.icon_path], 0
     je .icon_path_is_null
 
-        ; desc.hIcon = LoadImage(return.hinstance, icon_path, IMAGE_ICON, 64, 64, 0)
+        ; desc.hIcon = LoadImage(return.hinstance, icon_path, IMAGE_ICON, 64, 64, LR_LOADFROMFILE)
         push LR_LOADFROMFILE
         push 64
         push 64
@@ -135,7 +135,8 @@ Window_new:
     push edi
     mov ebp, esp
 
-    .rect           equ -RECT.sizeof
+    .rect           equ -RECT.sizeof-4
+    .window_style   equ -4
 
     .argbase        equ 12
     .return         equ .argbase+0
@@ -182,9 +183,14 @@ Window_new:
     add eax, Window_DEFAULT_POS_Y
     mov dword [ebp+.rect+RECT.bottom], eax
 
-    ; AdjustWindowRect(&mut rect, WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU, FALSE)
+    ; window_style = %style
+    mov dword [ebp+.window_style], \
+        WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU \
+            | WS_SIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE
+
+    ; AdjustWindowRect(&mut rect, window_style, FALSE)
     push 0
-    push WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU
+    push dword [ebp+.window_style]
     lea eax, dword [ebp+.rect]
     push eax
     call AdjustWindowRect
@@ -193,7 +199,7 @@ Window_new:
     ;     0,
     ;     return.class.name,
     ;     name,
-    ;     WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU,
+    ;     window_style,
     ;     Window::DEFAULT_POS_X, Window::DEFAULT_POS_Y,
     ;     rect.right - rect.left, rect.bottom - rect.top,
     ;     null, null,
@@ -211,7 +217,7 @@ Window_new:
     push eax
     push Window_DEFAULT_POS_Y
     push Window_DEFAULT_POS_X
-    push WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU
+    push dword [ebp+.window_style]
     push dword [ebp+.name]
     push dword [edi+Window.class+WindowClass.name]
     push 0
