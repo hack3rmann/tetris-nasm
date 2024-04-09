@@ -1,6 +1,7 @@
 %include "lib/window.inc"
 %include "lib/keyboard.inc"
 %include "lib/graphics.inc"
+%include "src/game.inc"
 %include "lib/debug/print.inc"
 
 extern printf
@@ -10,22 +11,16 @@ section .bss align 4
     window      resb Window.sizeof
     keyboard    resb Keyboard.sizeof
     graphics    resb Graphics.sizeof
+    game        resb Game.sizeof
     prev_time   resd 1
     duration    resd 1
-    dx_         resd 1
-    dy_         resd 1
 
 section .data align 4
     exit_code   dd 0
-    x dd 0.0
-    y dd 0.0
-    vel_x dd 100.0
-    vel_y dd 100.0
-    size dd 1.0
-    n_milliseconds_in_second dd 1_000.0
 
 section .rodata align 4
     window_name db "Tetris", 0, 0
+    thousand    dd 1_000.0
 
 section .text
     global main
@@ -37,9 +32,9 @@ main:
     push ebp
     mov ebp, esp
 
-    ; window = Window::new(window_name, 640, 480)
-    push 480
-    push 640
+    ; window = Window::new(window_name, 800, 600)
+    push 600
+    push 800
     push window_name
     push window
     call Window_new
@@ -52,6 +47,10 @@ main:
     push window
     push graphics
     call Graphics_new
+
+    ; game = Game::new()
+    push game
+    call Game_new
 
     ; window.add_event_listener(Keyboard::window_event_listener)
     push Keyboard_window_event_listener
@@ -92,80 +91,25 @@ main:
         ; prev_time += duration
         add dword [prev_time], eax
 
-        ; dx_ = vel_x * (duration as f32) / 1_000.0
-        fld dword [vel_x]
+        ; graphics.image.fill(%color)
+        push RGB(26, 27, 38)
+        lea eax, dword [graphics+Graphics.image]
+        push eax
+        call ScreenImage_fill
+
+        ; game.update(duration as f32 / 1_000.0)
         fild dword [duration]
-        fmulp
-        fdiv dword [n_milliseconds_in_second]
-        fstp dword [dx_]
+        fdiv dword [thousand]
+        sub esp, 4
+        fstp dword [esp]
+        push game
+        call Game_update
 
-        ; dy_ = vel_y * (duration as f32) / 1_000.0
-        fld dword [vel_y]
-        fild dword [duration]
-        fmulp
-        fdiv dword [n_milliseconds_in_second]
-        fstp dword [dy_]
-
-        ; if keyboard.is_pressed('W') {
-        push "W"
-        push keyboard
-        call Keyboard_is_pressed
-        test al, al
-        jz .keyboard_W_is_not_pressed
-
-            ; y += dy_
-            fld dword [y]
-            fadd dword [dy_]
-            fstp dword [y]
-        ; }
-        .keyboard_W_is_not_pressed:
-
-        ; if keyboard.is_pressed('S') {
-        push "S"
-        push keyboard
-        call Keyboard_is_pressed
-        test al, al
-        jz .keyboard_S_is_not_pressed
-
-            ; y -= dy_
-            fld dword [y]
-            fsub dword [dy_]
-            fstp dword [y]
-        ; }
-        .keyboard_S_is_not_pressed:
-
-        ; if keyboard.is_pressed('D') {
-        push "D"
-        push keyboard
-        call Keyboard_is_pressed
-        test al, al
-        jz .keyboard_D_is_not_pressed
-
-            ; x += dx_
-            fld dword [x]
-            fadd dword [dx_]
-            fstp dword [x]
-        ; }
-        .keyboard_D_is_not_pressed:
-
-        ; if keyboard.is_pressed('A') {
-        push "A"
-        push keyboard
-        call Keyboard_is_pressed
-        test al, al
-        jz .keyboard_A_is_not_pressed
-
-            ; x -= dx_
-            fld dword [x]
-            fsub dword [dx_]
-            fstp dword [x]
-        ; }
-        .keyboard_A_is_not_pressed:
-
-        ; move(x, y)
-        push dword [y]
-        push dword [x]
-        call move
+        ; game.draw(&mut graphics.image)
+        lea eax, dword [graphics+Graphics.image]
+        push eax
+        push game
+        call Game_draw
 
         jmp .msg_loop_start
     ; }

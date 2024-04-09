@@ -9,34 +9,8 @@ extern calloc, realloc, free
 
 section .data align 4
     Graphics_GLOBAL_PTR dd 0
-    x dd 0
-    y dd 0
 
 section .text
-
-; #[stdcall]
-; fn move(x: f32, y: f32)
-move:
-    push ebp
-    mov ebp, esp
-
-    .argbase        equ 8
-    .x              equ .argbase+0
-    .y              equ .argbase+4
-
-    .args_size      equ .y-.argbase+4
-
-    ; ::x = x as i32
-    fld dword [ebp+.x]
-    fistp dword [x]
-
-    ; ::y = y as i32
-    fld dword [ebp+.y]
-    fistp dword [y]
-
-    pop ebp
-    ret .args_size
-
 
 
 ; #[stdcall]
@@ -623,22 +597,6 @@ Graphics_on_redraw:
 
     ; self := esi
     mov esi, dword [ebp+.self]
-
-    ; self.image.fill(RGB(%color))
-    push RGB(26, 27, 38)
-    lea eax, dword [esi+Graphics.image]
-    push eax
-    call ScreenImage_fill
-
-    ; self.image.fill_rect(x, y, 100, 100, RGB(%color))
-    push RGB(213, 81, 113)
-    push 100
-    push 100
-    push dword [y]
-    push dword [x]
-    lea eax, dword [esi+Graphics.image]
-    push eax
-    call ScreenImage_fill_rect
 
     ; self.image.show(window)
     push ebx

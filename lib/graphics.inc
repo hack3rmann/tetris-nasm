@@ -32,7 +32,6 @@ struc Graphics
     .sizeof             equ $-.image
 endstruc
 
-extern move
 extern Graphics_new, Graphics_drop, Graphics_on_window_resize
 extern Graphics_window_event_listener, Graphics_on_redraw
 
