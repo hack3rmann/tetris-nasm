@@ -137,6 +137,48 @@ Keyboard_is_pressed:
 
 
 ; #[stdcall]
+; fn Keyboard::just_pressed(&mut self, key_code: u32) -> bool
+Keyboard_just_pressed:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .is_pressed         equ -4
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+    .key_code           equ .argbase+4
+
+    .args_size          equ .key_code-.argbase+4
+    .stack_size         equ -.is_pressed
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; is_pressed = self.is_pressed(key_code)
+    push dword [ebp+.key_code]
+    push esi
+    call Keyboard_is_pressed
+    mov byte [ebp+.is_pressed], al
+
+    ; self.release(key_code)
+    push dword [ebp+.key_code]
+    push esi
+    call Keyboard_release
+
+    ; return = is_pressed
+    mov al, byte [ebp+.is_pressed]
+    
+    add esp, .stack_size
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; fn Keyboard::press(&mut self, key_code: u32)
 Keyboard_press:
     push ebp
@@ -180,6 +222,41 @@ Keyboard_press:
 
 
 ; #[stdcall]
+; fn Keyboard::update(&mut self)
+Keyboard_update:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    %assign i 0
+    %rep 256 / 32
+
+        ; self.pressed_keys[i] &= ~self.keys_to_release[i]
+        mov eax, dword [esi+Keyboard.keys_to_release+4*i]
+        not eax
+        and eax, dword [esi+Keyboard.pressed_keys+4*i]
+        mov dword [esi+Keyboard.pressed_keys+4*i], eax
+
+        ; self.keys_to_release[i] = 0
+        mov dword [esi+Keyboard.keys_to_release+4*i], 0
+
+    %assign i i+1
+    %endrep
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; fn Keyboard::release(&mut self, key_code: u32)
 Keyboard_release:
     push ebp
@@ -197,25 +274,24 @@ Keyboard_release:
     cmp dword [ebp+.key_code], 256
     jnb .exit
 
-    ; let (src := edx) = keyboard.pressed_keys[key_code / 32]
+    ; let (src := edx) = keyboard.keys_to_release[key_code / 32]
     mov ecx, dword [ebp+.key_code]
     shr ecx, 5
-    mov edx, dword [esi+Keyboard.pressed_keys+4*ecx]
+    mov edx, dword [esi+Keyboard.keys_to_release+4*ecx]
 
-    ; let (mask := eax) = ~(1 << (31 - (key_code % 32)))
+    ; let (mask := eax) = 1 << (31 - (key_code % 32))
     mov eax, dword [ebp+.key_code]
     and eax, 31
     mov ecx, 31
     sub ecx, eax
     mov eax, 1
     shl eax, cl
-    not eax
 
-    ; keyboard.pressed_keys[key_code / 32] = src & mask
-    and eax, edx
+    ; keyboard.keys_to_release[key_code / 32] = src | mask
+    or eax, edx
     mov ecx, dword [ebp+.key_code]
     shr ecx, 5
-    mov dword [esi+Keyboard.pressed_keys+4*ecx], eax
+    mov dword [esi+Keyboard.keys_to_release+4*ecx], eax
 
 .exit:
     pop esi

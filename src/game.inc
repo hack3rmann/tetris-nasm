@@ -69,6 +69,8 @@ section .rodata align 4
                        RGB(213, 69,  73),  RGB(219, 106, 71),  \
                        RGB(228, 178, 143), RGB(68,  157, 158), \
                        RGB(96,  197, 255), RGB(10,  106, 186)
+    
+    Game_INITIAL_FALL_SPEED dd 4.0
 
 
 
@@ -105,10 +107,11 @@ struc Game
     .figure_col             resd 1
     .fall_speed             resd 1
     .last_fall_time         resd 1
+    .moving_direction       resd 1
     .sizeof                 equ $-.field
 endstruc
 
-extern Game_new, Game_draw, Game_update
+extern Game_new, Game_draw, Game_update, Game_set_moving_direction
 
 
 

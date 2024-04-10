@@ -234,14 +234,8 @@ Game_new:
     ; self.figure_col = Game_DEFAULT_FIGURE_COL
     mov dword [edi+Game.figure_col], Game_DEFAULT_FIGURE_COL
 
-    ; return.fall_speed = 3.0
-    fld1
-    fld1
-    fld1
-    fld1
-    faddp
-    faddp
-    faddp
+    ; return.fall_speed = initial_fall_speed
+    fld dword [Game_INITIAL_FALL_SPEED]
     fstp dword [edi+Game.fall_speed]
 
     ; return.last_fall_time = 0.0
@@ -320,25 +314,55 @@ Game_draw:
 
 
 ; #[stdcall]
+; fn Game::set_moving_direction(&mut self, direction: i32)
+Game_set_moving_direction:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+    .direction          equ .argbase+4
+
+    .args_size          equ .direction-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; self.moving_direction = direction
+    mov eax, dword [ebp+.direction]
+    mov dword [esi+Game.moving_direction], eax
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; fn Game::update(&mut self, time_delta: f32)
 Game_update:
     push ebp
     push esi
     mov ebp, esp
 
-    .offset             equ -4
+    .hoffset            equ -8
+    .voffset            equ -4
 
     .argbase            equ 12
     .self               equ .argbase+0
     .time_delta         equ .argbase+4
 
     .args_size          equ .time_delta-.argbase+4
-    .stack_size         equ -.offset
+    .stack_size         equ -.hoffset
 
     sub esp, .stack_size
 
     ; self := esi
     mov esi, dword [ebp+.self]
+
+    ; hoffset = self.moving_direction
+    mov eax, dword [esi+Game.moving_direction]
+    mov dword [ebp+.hoffset], eax
 
     ; self.last_fall_time += time_delta
     fld dword [esi+Game.last_fall_time]
@@ -365,15 +389,28 @@ Game_update:
     ; }
     .collision_did_not_happen:
 
-    ; offset = self.last_fall_time * self.fall_speed
+    ; voffset = self.last_fall_time * self.fall_speed
     fld dword [esi+Game.last_fall_time]
     fmul dword [esi+Game.fall_speed]
-    fistp dword [ebp+.offset]
+    fistp dword [ebp+.voffset]
 
-    ; self.figure_row = GameField_HEIGHT - 4 - offset
+    ; self.figure_row = GameField_HEIGHT - 4 - voffset
     mov eax, GameField_HEIGHT - 4
-    sub eax, dword [ebp+.offset]
+    sub eax, dword [ebp+.voffset]
     mov dword [esi+Game.figure_row], eax
+
+    ; if self.can_move_in(hoffset) {
+    push dword [ebp+.hoffset]
+    push esi
+    call Game_can_move_in
+    test al, al
+    jz .cannot_move_in_hoffset
+
+        ; self.figure_col += hoffset
+        mov eax, dword [ebp+.hoffset]
+        add dword [esi+Game.figure_col], eax
+    ; }
+    .cannot_move_in_hoffset:
 
     add esp, .stack_size
 
@@ -521,6 +558,155 @@ Game_handle_collisions:
     %endrep
 
     mov al, CollisionType_None
+
+.exit:
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn Game::is_colliding_with_left_boundary(&self) -> bool
+Game_is_colliding_with_left_boundary:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    %assign relative_row 0
+    %rep 4
+        %assign relative_col 0
+        %rep 4
+        %push
+
+            ; if 0 == self.cur_figure[relative_row, relative_col] { continue }
+            cmp byte [esi+Game.cur_figure+(relative_row*4+relative_col)], 0
+            je %$.continue
+
+            ; if 0 == relative_col + self.figure_col { return true }
+            mov eax, dword [esi+Game.figure_col]
+            add eax, relative_col
+            test eax, eax
+            setz al
+            jz .exit
+            
+            %$.continue:
+        %pop
+        %assign relative_col relative_col+1
+        %endrep
+    %assign relative_row relative_row+1
+    %endrep
+
+    xor al, al
+
+.exit:
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn Game::is_colliding_with_right_boundary(&self) -> bool
+Game_is_colliding_with_right_boundary:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    %assign relative_row 0
+    %rep 4
+        %assign relative_col 0
+        %rep 4
+        %push
+
+            ; if 0 == self.cur_figure[relative_row, relative_col] { continue }
+            cmp byte [esi+Game.cur_figure+(relative_row*4+relative_col)], 0
+            je %$.continue
+
+            ; if GameField_WIDTH - 1 == relative_col + self.figure_col { return true }
+            mov eax, dword [esi+Game.figure_col]
+            add eax, relative_col
+            cmp eax, GameField_WIDTH - 1
+            sete al
+            je .exit
+            
+            %$.continue:
+        %pop
+        %assign relative_col relative_col+1
+        %endrep
+    %assign relative_row relative_row+1
+    %endrep
+
+    xor al, al
+
+.exit:
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn Game::can_move_in(&self, direction: i32) -> bool
+Game_can_move_in:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+    .direction          equ .argbase+4
+
+    .args_size          equ .direction-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; if direction == 0 { return true }
+    cmp dword [ebp+.direction], 0
+    sete al
+    je .exit
+
+    ; direction == -1 {
+    cmp dword [ebp+.direction], -1
+    jne .direction_is_not_neg_one
+
+        ; return !self.is_colliding_with_left_boundary()
+        push esi
+        call Game_is_colliding_with_left_boundary
+        not al
+        and al, 1
+        jmp .exit
+    ; }
+    .direction_is_not_neg_one:
+
+    ; direction == 1 {
+    cmp dword [ebp+.direction], 1
+    jne .direction_is_not_one
+
+        ; return !self.is_colliding_with_right_boundary()
+        push esi
+        call Game_is_colliding_with_right_boundary
+        not al
+        and al, 1
+        jmp .exit
+    ; }
+    .direction_is_not_one:
+
+    xor al, al
 
 .exit:
     pop esi

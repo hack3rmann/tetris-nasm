@@ -16,7 +16,8 @@ section .bss align 4
     duration    resd 1
 
 section .data align 4
-    exit_code   dd 0
+    exit_code           dd 0
+    moving_direction    dd 0
 
 section .rodata align 4
     window_name db "Tetris", 0, 0
@@ -101,6 +102,36 @@ main:
         push eax
         call ScreenImage_fill
 
+        ; moving_direction = 0
+        mov dword [moving_direction], 0
+
+        ; if keyboard.just_pressed('A')
+        push "A"
+        push keyboard
+        call Keyboard_just_pressed
+        test al, al
+        jz .A_is_not_pressed
+        
+            dec dword [moving_direction]
+        ; }
+        .A_is_not_pressed:
+
+        ; if keyboard.just_pressed('D')
+        push "D"
+        push keyboard
+        call Keyboard_just_pressed
+        test al, al
+        jz .D_is_not_pressed
+
+            inc dword [moving_direction]
+        ; }
+        .D_is_not_pressed:
+
+        ; game.set_moving_direction(moving_direction)
+        push dword [moving_direction]
+        push game
+        call Game_set_moving_direction
+
         ; game.update(duration as f32 / 1_000.0)
         fild dword [duration]
         fdiv dword [thousand]
@@ -114,6 +145,10 @@ main:
         push eax
         push game
         call Game_draw
+
+        ; keyboard.update()
+        push keyboard
+        call Keyboard_update
 
         jmp .msg_loop_start
     ; }
