@@ -222,25 +222,26 @@ Game_new:
     push eax
     call GameField_new
 
-    ; return.cur_figure_type = CellType::T
-    mov byte [edi+Game.cur_figure_type], CellType_T
+    ; return.cur_figure_type = CellType::I
+    mov byte [edi+Game.cur_figure_type], CellType_I
 
-    ; return.cur_figure = FIGURES.t
-    %assign i 0
-    %rep 4
-        mov eax, dword [FIGURES.t+i*4]
-        mov dword [edi+Game.cur_figure+i*4], eax
-    %assign i i+1
-    %endrep
+    ; return.cur_figure = FIGURES.i
+    MEM_COPY edi+Game.cur_figure, FIGURES.i, 16
 
-    ; return.figure_row = GameField_HEIGHT - 4
-    mov dword [edi+Game.figure_row], GameField_HEIGHT - 4
+    ; self.figure_row = Game_DEFAULT_FIGURE_ROW
+    mov dword [edi+Game.figure_row], Game_DEFAULT_FIGURE_ROW
 
-    ; return.figure_col = GameField_WIDTH / 2
-    mov dword [edi+Game.figure_col], GameField_WIDTH / 2
+    ; self.figure_col = Game_DEFAULT_FIGURE_COL
+    mov dword [edi+Game.figure_col], Game_DEFAULT_FIGURE_COL
 
-    ; return.fall_speed = 1.0
+    ; return.fall_speed = 3.0
     fld1
+    fld1
+    fld1
+    fld1
+    faddp
+    faddp
+    faddp
     fstp dword [edi+Game.fall_speed]
 
     ; return.last_fall_time = 0.0
@@ -284,7 +285,7 @@ Game_draw:
         %rep 4
         %push
 
-            ; if self.cur_figure[relative_row * 4 + relative_col] != 0
+            ; if self.cur_figure[relative_row * 4 + relative_col] != 0 {
             cmp byte [esi+Game.cur_figure+relative_row*4+relative_col], 0
             je %$.figure_is_not_empty
 
@@ -344,6 +345,26 @@ Game_update:
     fadd dword [ebp+.time_delta]
     fstp dword [esi+Game.last_fall_time]
 
+    ; if self.handle_collisions() != CollisionType::None {
+    push esi
+    call Game_handle_collisions
+    cmp al, CollisionType_None
+    je .collision_did_not_happen
+
+        ; self.switch_piece((self.cur_figure_type as u32 + 1) % 8)
+        mov al, byte [esi+Game.cur_figure_type]
+        movzx eax, al
+        inc eax
+        and eax, 7
+        test al, al
+        mov edx, 1
+        cmovz eax, edx
+        push eax
+        push esi
+        call Game_switch_piece
+    ; }
+    .collision_did_not_happen:
+
     ; offset = self.last_fall_time * self.fall_speed
     fld dword [esi+Game.last_fall_time]
     fmul dword [esi+Game.fall_speed]
@@ -356,6 +377,152 @@ Game_update:
 
     add esp, .stack_size
 
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn Game::switch_piece(&mut self, next_type: CellType)
+Game_switch_piece:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+    .next_type          equ .argbase+4
+
+    .args_size          equ .next_type-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    %assign relative_row 0
+    %rep 4
+        %assign relative_col 0
+        %rep 4
+        %push
+            
+            ; if 0 == self.cur_figure[relative_row, relative_col] { continue }
+            cmp byte [esi+Game.cur_figure+relative_row*4+relative_col], 0
+            je %$.continue
+
+            ; self.field.cells[self.figure_row + relative_row,
+            ;                  self.figure_col + relative_col].type = self.cur_figure_type
+            mov eax, dword [esi+Game.figure_row]
+            add eax, relative_row
+            mov edx, GameField_WIDTH
+            mul edx
+            add eax, dword [esi+Game.figure_col]
+            add eax, relative_col
+            mov dl, byte [esi+Game.cur_figure_type]
+            movzx edx, dl
+            mov byte [esi+Game.field+GameField.cells+4*eax+Cell.type], dl
+
+            %$.continue:
+        %pop
+        %assign relative_col relative_col+1
+        %endrep
+    %assign relative_row relative_row+1
+    %endrep
+
+    ; self.cur_figure_type = next_type
+    mov eax, dword [ebp+.next_type]
+    mov byte [esi+Game.cur_figure_type], al
+
+    ; self.cur_figure = FIGURES[next_type]
+    shl eax, 4
+    MEM_COPY esi+Game.cur_figure, FIGURES+eax, 16
+
+    ; self.figure_row = Game_DEFAULT_FIGURE_ROW
+    mov dword [esi+Game.figure_row], Game_DEFAULT_FIGURE_ROW
+
+    ; self.figure_col = Game_DEFAULT_FIGURE_COL
+    mov dword [esi+Game.figure_col], Game_DEFAULT_FIGURE_COL
+
+    ; self.last_fall_time -= self.last_fall_time as u32 as f32
+    fld dword [esi+Game.last_fall_time]
+    fld dword [esi+Game.last_fall_time]
+    frndint
+    fsubp
+    fstp dword [esi+Game.last_fall_time]
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn Game::handle_collisions(&mut self) -> CollisionType
+Game_handle_collisions:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    %assign relative_row 0
+    %rep 4
+        %assign relative_col 0
+        %rep 4
+        %push
+
+            ; if 0 == self.cur_figure[relative_row, relative_col]
+            cmp byte [esi+Game.cur_figure+(relative_row*4+relative_col)], 0
+            je %$.continue
+
+            ; if self.figure_row + relative_row - 1 >= GameField_HEIGHT { return CollisionType::BottomBoundary }
+            mov eax, dword [esi+Game.figure_row]
+            add eax, relative_row
+            dec eax
+            cmp eax, GameField_HEIGHT
+            mov al, CollisionType_BottomBoundary
+            jnb .exit
+
+            ; if self.figure_col + relative_col >= GameField_WIDTH { return CollisionType::SideBoundary }
+            mov eax, dword [esi+Game.figure_col]
+            add eax, relative_col
+            cmp eax, GameField_WIDTH
+            mov al, CollisionType_SideBoundary
+            jnb .exit
+
+            ; if CellType_Empty != self.field.cells[self.figure_row + relative_row - 1, self.figure_col + relative_col].type
+            mov eax, dword [esi+Game.figure_row]
+            add eax, relative_row
+            dec eax
+            mov edx, GameField_WIDTH
+            mul edx
+            add eax, dword [esi+Game.figure_col]
+            add eax, relative_col
+            mov al, byte [esi+Game.field+GameField.cells+4*eax+Cell.type]
+            cmp al, CellType_Empty
+            je %$.cell_is_empty
+            
+                ; return CollisionType::GamePiece
+                mov al, CollisionType_GamePiece
+                jmp .exit
+
+            ; }
+            %$.cell_is_empty:
+
+            %$.continue:
+
+        %pop
+        %assign relative_col relative_col+1
+        %endrep
+    %assign relative_row relative_row+1
+    %endrep
+
+    mov al, CollisionType_None
+
+.exit:
     pop esi
     pop ebp
     ret .args_size

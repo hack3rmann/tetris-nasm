@@ -88,6 +88,10 @@ main:
         sub eax, dword [prev_time]
         mov dword [duration], eax
 
+        ; if duration == 0 { continue }
+        cmp dword [duration], 0
+        je .msg_loop_start
+
         ; prev_time += duration
         add dword [prev_time], eax
 
