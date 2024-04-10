@@ -18,10 +18,20 @@ section .bss align 4
 section .data align 4
     exit_code           dd 0
     moving_direction    dd 0
+    speed_multiplier    dd 1.0
 
 section .rodata align 4
     window_name db "Tetris", 0, 0
     thousand    dd 1_000.0
+    two         dd 2.0
+    three       dd 3.0
+    four        dd 4.0
+    five        dd 5.0
+    six         dd 6.0
+    seven       dd 7.0
+    eight       dd 8.0
+    nine        dd 9.0
+    ten         dd 10.0
 
 section .text
     global main
@@ -126,6 +136,40 @@ main:
             inc dword [moving_direction]
         ; }
         .D_is_not_pressed:
+
+        ; speed_multiplier = 1.0
+        fld1
+        fstp dword [speed_multiplier]
+
+        ; if keyboard.is_pressed('S') {
+        push "S"
+        push keyboard
+        call Keyboard_is_pressed
+        test al, al
+        jz .S_is_not_pressed
+        
+            ; speed_multiplier = 5.0
+            fld dword [seven]
+            fstp dword [speed_multiplier]
+        ; }
+        .S_is_not_pressed:
+        
+        ; if keyboard.just_pressed('R') {
+        push "R"
+        push keyboard
+        call Keyboard_just_pressed
+        test al, al
+        je .R_is_not_pressed
+        
+            ; game.rotate()
+            push game
+            call Game_rotate
+        ; }
+        .R_is_not_pressed:
+
+        ; game.speed_multiplier = speed_multiplier
+        fld dword [speed_multiplier]
+        fstp dword [game+Game.speed_multiplier]
 
         ; game.set_moving_direction(moving_direction)
         push dword [moving_direction]

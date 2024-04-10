@@ -37,40 +37,40 @@ section .rodata align 4
                    0, 0, 0, 0, \
                    0, 0, 0, 0
         .t  db 0, 0, 0, 0, \
-               0, 0, 0, 0, \
                0, 0, 1, 0, \
-               0, 1, 1, 1
+               0, 1, 1, 1, \
+               0, 0, 0, 0
         .z  db 0, 0, 0, 0, \
-               0, 0, 0, 0, \
                0, 1, 1, 0, \
-               0, 0, 1, 1
-        .l  db 0, 0, 0, 0, \
+               0, 0, 1, 1, \
+               0, 0, 0, 0
+        .l  db 0, 1, 0, 0, \
                0, 1, 0, 0, \
-               0, 1, 0, 0, \
-               0, 1, 1, 0
+               0, 1, 1, 0, \
+               0, 0, 0, 0
         .o  db 0, 0, 0, 0, \
-               0, 0, 0, 0, \
-               0, 0, 1, 1, \
-               0, 0, 1, 1
+               0, 1, 1, 0, \
+               0, 1, 1, 0, \
+               0, 0, 0, 0
         .s  db 0, 0, 0, 0, \
-               0, 0, 0, 0, \
                0, 0, 1, 1, \
-               0, 1, 1, 0
+               0, 1, 1, 0, \
+               0, 0, 0, 0
         .i  db 0, 0, 1, 0, \
                0, 0, 1, 0, \
                0, 0, 1, 0, \
                0, 0, 1, 0
-        .r  db 0, 0, 0, 0, \
-               0, 1, 1, 0, \
+        .r  db 0, 1, 1, 0, \
                0, 1, 0, 0, \
-               0, 1, 0, 0
+               0, 1, 0, 0, \
+               0, 0, 0, 0
 
     cell_colors     dd RGB(16,  16,  20),  RGB(146, 43,  140), \
                        RGB(213, 69,  73),  RGB(219, 106, 71),  \
                        RGB(228, 178, 143), RGB(68,  157, 158), \
                        RGB(96,  197, 255), RGB(10,  106, 186)
     
-    Game_INITIAL_FALL_SPEED dd 4.0
+    Game_INITIAL_FALL_SPEED dd 2.0
 
 
 
@@ -106,12 +106,13 @@ struc Game
     .figure_row             resd 1
     .figure_col             resd 1
     .fall_speed             resd 1
+    .speed_multiplier       resd 1
     .last_fall_time         resd 1
     .moving_direction       resd 1
     .sizeof                 equ $-.field
 endstruc
 
-extern Game_new, Game_draw, Game_update, Game_set_moving_direction
+extern Game_new, Game_draw, Game_update, Game_set_moving_direction, Game_rotate
 
 
 
