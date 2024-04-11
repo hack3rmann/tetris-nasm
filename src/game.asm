@@ -245,6 +245,10 @@ Game_new:
     fld1
     fstp dword [edi+Game.speed_multiplier]
 
+    ; return.lie_time = 0.0
+    fldz
+    fstp dword [edi+Game.lie_time]
+
     pop edi
     pop ebp
     ret .args_size
@@ -348,6 +352,7 @@ Game_update:
     push esi
     mov ebp, esp
 
+    .lie_offset         equ -12
     .hoffset            equ -8
     .voffset            equ -4
 
@@ -356,22 +361,12 @@ Game_update:
     .time_delta         equ .argbase+4
 
     .args_size          equ .time_delta-.argbase+4
-    .stack_size         equ -.hoffset
+    .stack_size         equ -.lie_offset
 
     sub esp, .stack_size
 
     ; self := esi
     mov esi, dword [ebp+.self]
-
-    ; hoffset = self.moving_direction
-    mov eax, dword [esi+Game.moving_direction]
-    mov dword [ebp+.hoffset], eax
-
-    ; self.last_fall_time += time_delta * self.speed_multiplier
-    fld dword [ebp+.time_delta]
-    fmul dword [esi+Game.speed_multiplier]
-    fadd dword [esi+Game.last_fall_time]
-    fstp dword [esi+Game.last_fall_time]
 
     ; if self.handle_collisions(0, -1) != CollisionType::None {
     push -1
@@ -380,6 +375,35 @@ Game_update:
     call Game_handle_collisions
     cmp al, CollisionType_None
     je .collision_did_not_happen
+
+        ; self.lie_time += time_delta * self.speed_multiplier
+        fld dword [ebp+.time_delta]
+        fmul dword [esi+Game.speed_multiplier]
+        fadd dword [esi+Game.lie_time]
+        fstp dword [esi+Game.lie_time]
+
+        jmp .collision_handle_end
+    ; } else {
+    .collision_did_not_happen:
+    
+        ; self.lie_time = 0.0
+        fldz
+        fstp dword [esi+Game.lie_time]
+    ; }
+    .collision_handle_end:
+    
+    ; lie_offset = (self.lie_time * self.fall_speed) as i32
+    fld dword [esi+Game.lie_time]
+    fmul dword [esi+Game.fall_speed]
+    fistp dword [ebp+.lie_offset]
+
+    ; if lie_offset >= 3 {
+    cmp dword [ebp+.lie_offset], 3
+    jl .lie_offset_less_than_1
+
+        ; self.lie_time = 0.0
+        fldz
+        fstp dword [esi+Game.lie_time]
 
         ; self.switch_piece((self.cur_figure_type as u32 + 1) % 8)
         mov al, byte [esi+Game.cur_figure_type]
@@ -393,9 +417,25 @@ Game_update:
         push esi
         call Game_switch_piece
     ; }
-    .collision_did_not_happen:
+    .lie_offset_less_than_1:
 
-    ; voffset = self.last_fall_time * self.fall_speed
+    ; if self.lie_time == 0.0 {
+    cmp dword [esi+Game.lie_time], 0
+    jne .self_lie_time_is_not_0
+
+        ; self.last_fall_time += time_delta * self.speed_multiplier
+        fld dword [ebp+.time_delta]
+        fmul dword [esi+Game.speed_multiplier]
+        fadd dword [esi+Game.last_fall_time]
+        fstp dword [esi+Game.last_fall_time]
+    ; }
+    .self_lie_time_is_not_0:
+
+    ; hoffset = self.moving_direction
+    mov eax, dword [esi+Game.moving_direction]
+    mov dword [ebp+.hoffset], eax
+
+    ; voffset = (self.last_fall_time * self.fall_speed) as i32
     fld dword [esi+Game.last_fall_time]
     fmul dword [esi+Game.fall_speed]
     fistp dword [ebp+.voffset]

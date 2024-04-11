@@ -2,6 +2,7 @@
 %include "lib/keyboard.inc"
 %include "lib/graphics.inc"
 %include "src/game.inc"
+%include "lib/float_consts.inc"
 %include "lib/debug/print.inc"
 
 extern printf
@@ -23,15 +24,6 @@ section .data align 4
 section .rodata align 4
     window_name db "Tetris", 0, 0
     thousand    dd 1_000.0
-    two         dd 2.0
-    three       dd 3.0
-    four        dd 4.0
-    five        dd 5.0
-    six         dd 6.0
-    seven       dd 7.0
-    eight       dd 8.0
-    nine        dd 9.0
-    ten         dd 10.0
 
 section .text
     global main

@@ -105,6 +105,7 @@ struc Game
     .figure_row             resd 1
     .figure_col             resd 1
     .fall_speed             resd 1
+    .lie_time               resd 1
     .speed_multiplier       resd 1
     .last_fall_time         resd 1
     .moving_direction       resd 1
