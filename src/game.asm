@@ -1,5 +1,6 @@
 %include "src/game.inc"
 %include "lib/mem.inc"
+%include "lib/numeric.inc"
 %include "lib/debug/print.inc"
 
 extern printf
@@ -82,8 +83,8 @@ GameField_draw:
 
     ; image.fill_rect(left_offset, bottom_offset,
     ;                 FIELD_WIDTH_PIXELS, FIELD_HEIGHT_PIXELS,
-    ;                 BACKGROUND_COLOR)
-    push BACKGROUND_COLOR
+    ;                 Game::BACKGROUND_COLOR)
+    push Game_BACKGROUND_COLOR
     push FIELD_HEIGHT_PIXELS
     push FIELD_WIDTH_PIXELS
     push dword [ebp+.bottom_offset]
@@ -149,9 +150,9 @@ GameField_draw_cell:
     cmp dword [ebp+.col], GameField_WIDTH
     jnb .exit
 
-    ; cur_color = cell_colors[type]
+    ; cur_color = Game::CELL_COLORS[type]
     mov eax, dword [ebp+.type]
-    mov eax, dword [cell_colors+4*eax]
+    mov eax, dword [Game_CELL_COLORS+4*eax]
     mov dword [ebp+.cur_color], eax
 
     ; left = (image.width - FIELD_WIDTH_PIXELS) / 2 
@@ -225,8 +226,8 @@ Game_new:
     ; return.cur_figure_type = CellType::I
     mov byte [edi+Game.cur_figure_type], CellType_I
 
-    ; return.cur_figure = FIGURES.i
-    MEM_COPY edi+Game.cur_figure, FIGURES.i, 16
+    ; return.cur_figure = Game::FIGURES.i
+    MEM_COPY edi+Game.cur_figure, Game_FIGURES.i, 16
 
     ; self.figure_row = Game_DEFAULT_FIGURE_ROW
     mov dword [edi+Game.figure_row], Game_DEFAULT_FIGURE_ROW
@@ -475,9 +476,9 @@ Game_switch_piece:
     mov eax, dword [ebp+.next_type]
     mov byte [esi+Game.cur_figure_type], al
 
-    ; self.cur_figure = FIGURES[next_type]
+    ; self.cur_figure = Self::FIGURES[next_type]
     shl eax, 4
-    MEM_COPY esi+Game.cur_figure, FIGURES+eax, 16
+    MEM_COPY esi+Game.cur_figure, Game_FIGURES+eax, 16
 
     ; self.figure_row = Game_DEFAULT_FIGURE_ROW
     mov dword [esi+Game.figure_row], Game_DEFAULT_FIGURE_ROW
@@ -752,6 +753,53 @@ Game_rotate:
     push esi
     mov ebp, esp
 
+    .figure_state       equ -16
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+    .stack_size         equ -.figure_state
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; figure_state = self.cur_figure
+    MEM_COPY ebp+.figure_state, esi+Game.cur_figure, 16
+
+    ; Self::rotate_figure_left(&mut self.cur_figure)
+    lea eax, dword [esi+Game.cur_figure]
+    push eax
+    call Game_rotate_figure_left
+
+
+    ; if !self.kick_figure() {
+    push esi
+    call Game_kick_figure
+    test al, al
+    jnz .kick_success
+
+        ; self.cur_figure = figure_state
+        MEM_COPY esi+Game.cur_figure, ebp+.figure_state, 16
+    ; }
+    .kick_success:
+
+    add esp, .stack_size
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::kick_figure(&mut self) -> success: bool
+Game_kick_figure:
+    push ebp
+    push esi
+    mov ebp, esp
+
     .argbase            equ 12
     .self               equ .argbase+0
 
@@ -760,11 +808,50 @@ Game_rotate:
     ; self := esi
     mov esi, dword [ebp+.self]
 
-    ; Self::rotate_figure_left(&mut self.cur_figure)
-    lea eax, dword [esi+Game.cur_figure]
-    push eax
-    call Game_rotate_figure_left
+    ; if self.handle_collisions(0, 0) == CollisionType::None { return true }
+    push 0
+    push 0
+    push esi
+    call Game_handle_collisions
+    cmp al, CollisionType_None
+    sete al
+    je .exit
 
+    %assign hoffset -2
+    %rep 5
+        %assign voffset -2
+        %rep 5
+        %push
+
+            ; if self.handle_collisions(hoffset, voffset) == CollisionType::None {
+            push voffset
+            push hoffset
+            push esi
+            call Game_handle_collisions
+            cmp al, CollisionType_None
+            jne %$.collision
+
+                ; self.figure_row += voffset
+                add dword [esi+Game.figure_row], voffset
+
+                ; self.figure_col += hoffset
+                add dword [esi+Game.figure_col], hoffset
+
+                ; return true
+                mov al, 1
+                jmp .exit
+            ; }
+            %$.collision:
+
+        %pop
+        %assign voffset voffset+1
+        %endrep
+    %assign hoffset hoffset+1
+    %endrep
+
+    xor al, al
+
+.exit:
     pop esi
     pop ebp
     ret .args_size

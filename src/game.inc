@@ -14,9 +14,7 @@
 %define CellType_I      6
 %define CellType_R      7
 
-%define BACKGROUND_COLOR    RGB(22, 22, 30)
-
-%define FIGURE_SIZE             16
+%define Game_BACKGROUND_COLOR    RGB(22, 22, 30)
 
 %define CELL_SIZE_PIXELS        28
 %define CELL_PADDING_PIXELS     1
@@ -31,7 +29,7 @@
 
 
 section .rodata align 4
-    FIGURES:
+    Game_FIGURES:
         .empty  db 0, 0, 0, 0, \
                    0, 0, 0, 0, \
                    0, 0, 0, 0, \
@@ -65,11 +63,11 @@ section .rodata align 4
                0, 1, 0, 0, \
                0, 0, 0, 0
 
-    cell_colors     dd RGB(16,  16,  20),  RGB(146, 43,  140), \
-                       RGB(213, 69,  73),  RGB(219, 106, 71),  \
-                       RGB(228, 178, 143), RGB(68,  157, 158), \
-                       RGB(96,  197, 255), RGB(10,  106, 186)
-    
+    Game_CELL_COLORS dd RGB(16,  16,  20),  RGB(146, 43,  140), \
+                        RGB(213, 69,  73),  RGB(219, 106, 71),  \
+                        RGB(228, 178, 143), RGB(68,  157, 158), \
+                        RGB(96,  197, 255), RGB(10,  106, 186)
+
     Game_INITIAL_FALL_SPEED dd 2.0
 
 
