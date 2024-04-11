@@ -97,6 +97,7 @@ extern GameField_new, GameField_draw, GameField_draw_cell
 
 %define Game_DEFAULT_FIGURE_ROW (GameField_HEIGHT - 3)
 %define Game_DEFAULT_FIGURE_COL (GameField_WIDTH / 2 - 2)
+%define Game_LIE_TIMEOUT 3
 
 struc Game
     .field                  resb GameField.sizeof

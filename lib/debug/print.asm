@@ -22,9 +22,9 @@ debug_u32:
 
     sub esp, .stack_size
 
-    mov dword [ebp+.fmt], `%u`
+    mov dword [ebp+.fmt], `%d`
 
-    ; printf("%u", value)
+    ; printf("%d", value)
     push dword [ebp+.value]
     lea eax, dword [ebp+.fmt]
     push eax
