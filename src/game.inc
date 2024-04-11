@@ -74,7 +74,8 @@ section .rodata align 4
 
 struc Cell
     ; : CellType
-    .type                   resb 1 + 3
+    .type                   resb 1
+    .do_clear               resb 1 + 2
     .sizeof                 equ $-.type
 endstruc
 
@@ -94,7 +95,7 @@ extern GameField_new, GameField_draw, GameField_draw_cell
 
 
 
-%define Game_DEFAULT_FIGURE_ROW (GameField_HEIGHT - 4)
+%define Game_DEFAULT_FIGURE_ROW (GameField_HEIGHT - 3)
 %define Game_DEFAULT_FIGURE_COL (GameField_WIDTH / 2 - 2)
 
 struc Game

@@ -26,6 +26,17 @@
     %pop
 %endmacro
 
+; MEM_SET dst_ptr, value, n_bytes
+%macro MEM_SET 3
+    %push
+    %assign %$i 0
+    %rep %3 / 4
+        mov dword [%1 + 4 * %$i], %2
+    %assign %$i %$i+1
+    %endrep
+    %pop
+%endmacro
+
 
 
 %endif ; !_TETRIS_LIB_MEM_

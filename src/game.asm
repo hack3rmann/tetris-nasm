@@ -3,7 +3,7 @@
 %include "lib/numeric.inc"
 %include "lib/debug/print.inc"
 
-extern printf
+extern memset, memcpy
 
 
 
@@ -30,12 +30,8 @@ GameField_new:
 
     DEBUGLN `GameField::new()`
 
-    %assign i 0
-    %rep GameField_N_CELLS
-        ; return.cells[i] = mem::zeroed()
-        MEM_ZEROED Cell, edi + GameField.cells + i * Cell.sizeof
-    %assign i i+1
-    %endrep
+    ; return.cells = mem::zeroed()
+    MEM_SET edi+GameField.cells, 0, GameField_WIDTH * GameField_HEIGHT * Cell.sizeof
 
     pop edi
     pop ebp
@@ -98,7 +94,9 @@ GameField_draw:
         %rep GameField_WIDTH
 
             ; Self::draw_cell(image, row, col, self.cells[row * GameField_WIDTH + col].type)
-            push dword [esi+GameField.cells+4*(row*GameField_WIDTH+col)+Cell.type]
+            mov al, byte [esi+GameField.cells+4*(row*GameField_WIDTH+col)+Cell.type]
+            movzx eax, al
+            push eax
             push col
             push row
             push edi
@@ -419,6 +417,10 @@ Game_update:
         add dword [esi+Game.figure_col], eax
     ; }
     .cannot_move_in_hoffset:
+    
+    ; game.clear_lines()
+    push esi
+    call Game_clear_lines
 
     add esp, .stack_size
 
@@ -888,5 +890,90 @@ Game_can_move_in:
 
 .exit:
     pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn Game::clear_lines(&mut self)
+Game_clear_lines:
+    push ebp
+    push edi
+    push esi
+    mov ebp, esp
+
+    .tmp_field          equ -GameField.sizeof
+
+    .argbase            equ 16
+    .self               equ .argbase+0
+    
+    .args_size          equ .self-.argbase+4
+    .stack_size         equ -.tmp_field
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    sub esp, .stack_size
+
+    ; tmp_field = self.field.clone()
+    MEM_COPY ebp+.tmp_field, esi+Game.field, GameField.sizeof
+
+    ; self.field = mem::zeroed()
+    MEM_ZEROED GameField, esi+Game.field
+
+    ; let (dest_index := edi) = 0
+    xor edi, edi
+
+    %assign row 0
+    %rep GameField_HEIGHT
+    %push
+
+        ; let (skip_line := al) = 0
+        xor al, al
+
+        %assign col 0
+        %rep GameField_WIDTH
+
+            ; if tmp_field.cells[row, col].type == CellType_Empty { skip_line = 1; break }
+            cmp byte [ebp+.tmp_field+GameField.cells+Cell.sizeof*(row*GameField_WIDTH+col)+Cell.type], CellType_Empty
+            sete al
+            je %$.end_col
+
+        %assign col col+1
+        %endrep
+        %$.end_col:
+
+        ; if skip_line { continue }
+        test al, al
+        jz %$.continue
+
+        ; memcpy(&mut self.field.cells[dest_index, 0]
+        ;        &tmp_field.cells[row, 0]
+        ;        GameField_WIDTH * sizoef(Cell))
+        push eax
+        push GameField_WIDTH * Cell.sizeof
+        lea eax, dword [ebp+.tmp_field+GameField.cells+Cell.sizeof*(row*GameField_WIDTH)]
+        push eax
+        mov eax, GameField_WIDTH
+        mul edi
+        lea eax, dword [esi+Game.field+GameField.cells+Cell.sizeof*eax]
+        push eax
+        call memcpy
+        add esp, 12
+        pop eax
+
+        ; dest_index += 1
+        inc edi
+
+        %$.continue:
+
+    %pop
+    %assign row row+1
+    %endrep
+
+    add esp, .stack_size
+
+    pop esi
+    pop edi
     pop ebp
     ret .args_size
