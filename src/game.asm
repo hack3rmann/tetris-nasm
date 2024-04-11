@@ -3,7 +3,7 @@
 %include "lib/numeric.inc"
 %include "lib/debug/print.inc"
 
-extern memset, memcpy
+extern memset, memcpy, rand, srand, time
 
 
 
@@ -206,10 +206,15 @@ Game_new:
     push edi
     mov ebp, esp
 
+    .prev_esp           equ -4
+
     .argbase            equ 12
     .return             equ .argbase+0
 
     .args_size          equ .return-.argbase+4
+    .stack_size         equ -.prev_esp
+
+    sub esp, .stack_size
 
     ; return := edi
     mov edi, dword [ebp+.return]
@@ -249,7 +254,83 @@ Game_new:
     fldz
     fstp dword [edi+Game.lie_time]
 
+    mov dword [ebp+.prev_esp], esp
+    ; srand(time(null))
+    push 0
+    call time
+    push eax
+    call srand
+    mov esp, dword [ebp+.prev_esp]
+
+    %assign i 0
+    %rep Game.next_figure_types.len
+
+        ; return.next_figure_types[i] = rand() % 7 + 1
+        call rand
+        xor edx, edx
+        mov ecx, 7
+        div ecx
+        inc edx
+        mov byte [edi+Game.next_figure_types+i], dl
+
+    %assign i i+1
+    %endrep
+
+    add esp, .stack_size
+
     pop edi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; fn Game::next_figure(next_figures: &mut [FigureType; Self::N_NEXT_FIGURES]) -> FigureType
+Game_next_figure:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .result             equ -4
+
+    .argbase            equ 12
+    .next_figures       equ .argbase+0
+
+    .args_size          equ .next_figures-.argbase+4
+    .stack_size         equ -.result
+
+    sub esp, .stack_size
+
+    ; next_figures := esi
+    mov esi, dword [ebp+.next_figures]
+
+    ; let result = next_figures[0]
+    mov al, byte [esi+0]
+    movzx eax, al
+    mov dword [ebp+.result], eax
+
+    %assign i 0
+    %rep Game.next_figure_types.len - 1
+
+        mov al, byte [esi+i+1]
+        mov byte [esi+i], al
+
+    %assign i i+1
+    %endrep
+
+    ; next_figures[Game_N_NEXT_FIGURES - 1] = rand() % 7 + 1
+    call rand
+    xor edx, edx
+    mov ecx, 7
+    div ecx
+    inc edx
+    mov byte [esi+Game_N_NEXT_FIGURES-1], dl
+
+    ; return result
+    mov eax, dword [ebp+.result]
+
+    add esp, .stack_size
+
+    pop esi
     pop ebp
     ret .args_size
 
@@ -313,6 +394,128 @@ Game_draw:
         %endrep
     %assign relative_row relative_row+1
     %endrep
+
+    ; self.draw_next_pieces(image)
+    push edi
+    push esi
+    call Game_draw_next_pieces
+
+    pop edi
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::draw_next_pieces(&self, image: &mut ScreenImage)
+Game_draw_next_pieces:
+    push ebp
+    push esi
+    push edi
+    mov ebp, esp
+
+    .color              equ -12
+    .bottom             equ -8
+    .left               equ -4
+
+    .argbase            equ 16
+    .self               equ .argbase+0
+    .image              equ .argbase+4
+
+    .args_size          equ .image-.argbase+4
+    .stack_size         equ -.color
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; image := edi
+    mov edi, dword [ebp+.image]
+
+    %assign i 0
+    %rep Game.next_figure_types.len
+        ; left = image.width / 2 + FIELD_WIDTH_PIXELS / 2 + CELL_SIZE_PIXELS
+        mov eax, dword [edi+ScreenImage.width]
+        shr eax, 1
+        add eax, FIELD_WIDTH_PIXELS / 2 + CELL_SIZE_PIXELS
+        mov dword [ebp+.left], eax
+
+        ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + 6 * CELL_SIZE_PIXELS + i * 5 * CELL_SIZE_PIXELS
+        mov eax, dword [edi+ScreenImage.height]
+        shr eax, 1
+        sub eax, FIELD_HEIGHT_PIXELS / 2 - 6 * CELL_SIZE_PIXELS - i * 5 * CELL_SIZE_PIXELS
+        mov dword [ebp+.bottom], eax
+
+        ; image.fill_rect(left,
+        ;                 bottom,
+        ;                 4 * CELL_SIZE_PIXELS,
+        ;                 4 * CELL_SIZE_PIXELS,
+        ;                 Game_BACKGROUNG_COLOR)
+        push Game_BACKGROUND_COLOR
+        push 4 * CELL_SIZE_PIXELS
+        push 4 * CELL_SIZE_PIXELS
+        push dword [ebp+.bottom]
+        push dword [ebp+.left]
+        push edi
+        call ScreenImage_fill_rect
+
+        %assign row 0
+        %rep 4
+            %assign col 0
+            %rep 4
+            %push
+
+                ; let (piece_index := ecx) = self.next_figure_types[Game_N_NEXT_FIGURES - i - 1]
+                mov cl, byte [esi+Game.next_figure_types+Game_N_NEXT_FIGURES-i-1]
+                movzx ecx, cl
+
+                ; if 0 == Game::FIGURES[piece_index][row, col] {
+                mov edx, ecx
+                shl edx, 4
+                cmp byte [Game_FIGURES+edx+(row*4+col)], 0
+                jne %$.piece_not_empty
+
+                    ; color = Game::CELL_COLORS[0]
+                    mov eax, dword [Game_CELL_COLORS+0]
+                    mov dword [ebp+.color], eax
+
+                jmp %$.piece_handle_end
+                ; } else {
+                %$.piece_not_empty:
+
+                    ; color = Game::CELL_COLORS[piece_index]
+                    mov eax, dword [Game_CELL_COLORS+4*ecx]
+                    mov dword [ebp+.color], eax
+                ; }
+                %$.piece_handle_end:
+
+                ; image.fill_rect(left + col * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS,
+                ;                 bottom + row * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS,
+                ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+                ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+                ;                 color)
+                push dword [ebp+.color]
+                push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+                push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+                mov eax, dword [ebp+.bottom]
+                add eax, row * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+                push eax
+                mov eax, dword [ebp+.left]
+                add eax, col * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+                push eax
+                push edi
+                call ScreenImage_fill_rect
+
+            %pop
+            %assign col col+1
+            %endrep
+        %assign row row+1
+        %endrep
+    %assign i i+1
+    %endrep
+
+    add esp, .stack_size
 
     pop edi
     pop esi
@@ -401,14 +604,13 @@ Game_update:
     cmp dword [ebp+.lie_offset], Game_LIE_TIMEOUT
     jl .lie_offset_less_than_1
 
-        ; self.switch_piece((self.cur_figure_type as u32 + 1) % 8)
-        mov al, byte [esi+Game.cur_figure_type]
+        ; let (next_type := al) = Self::next_figure(&mut self.next_figure_types)
+        lea eax, dword [esi+Game.next_figure_types]
+        push eax
+        call Game_next_figure
+
+        ; self.switch_piece(next_type)
         movzx eax, al
-        inc eax
-        and eax, 7
-        test al, al
-        mov edx, 1
-        cmovz eax, edx
         push eax
         push esi
         call Game_switch_piece

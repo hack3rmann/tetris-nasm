@@ -37,6 +37,9 @@
     %pop
 %endmacro
 
+%define ALIGNED(n_bytes) \
+    n_bytes + (4 - (n_bytes % 4)) % 4
+
 
 
 %endif ; !_TETRIS_LIB_MEM_

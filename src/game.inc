@@ -2,6 +2,7 @@
 %define _TETRIS_GAME_
 
 %include "lib/graphics.inc"
+%include "lib/mem.inc"
 
 
 
@@ -13,6 +14,14 @@
 %define CellType_S      5
 %define CellType_I      6
 %define CellType_R      7
+
+%define FigureType_T      1
+%define FigureType_Z      2
+%define FigureType_L      3
+%define FigureType_O      4
+%define FigureType_S      5
+%define FigureType_I      6
+%define FigureType_R      7
 
 %define Game_BACKGROUND_COLOR    RGB(22, 22, 30)
 
@@ -87,7 +96,8 @@ endstruc
 
 struc GameField
     ; : [Cell; Self::N_CELLS]
-    .cells                  resb GameField_N_CELLS * Cell.sizeof
+    .cells.len              equ GameField_N_CELLS
+    .cells                  resb Cell.sizeof * .cells.len
     .sizeof                 equ $-.cells
 endstruc
 
@@ -98,19 +108,23 @@ extern GameField_new, GameField_draw, GameField_draw_cell
 %define Game_DEFAULT_FIGURE_ROW (GameField_HEIGHT - 3)
 %define Game_DEFAULT_FIGURE_COL (GameField_WIDTH / 2 - 2)
 %define Game_LIE_TIMEOUT 3
+%define Game_N_NEXT_FIGURES 3
 
 struc Game
-    .field                  resb GameField.sizeof
-    .cur_figure_type        resb 1 + 3
-    .cur_figure             resb 16
-    .figure_row             resd 1
-    .figure_col             resd 1
-    .fall_speed             resd 1
-    .lie_time               resd 1
-    .speed_multiplier       resd 1
-    .last_fall_time         resd 1
-    .moving_direction       resd 1
-    .sizeof                 equ $-.field
+    .field                         resb GameField.sizeof
+    .cur_figure_type               resb ALIGNED(1)
+    .cur_figure.len                equ  16
+    .cur_figure                    resb 1 * .cur_figure.len
+    .figure_row                    resd 1
+    .figure_col                    resd 1
+    .fall_speed                    resd 1
+    .lie_time                      resd 1
+    .speed_multiplier              resd 1
+    .last_fall_time                resd 1
+    .moving_direction              resd 1
+    .next_figure_types.len         equ Game_N_NEXT_FIGURES
+    .next_figure_types             resb ALIGNED(.next_figure_types.len)
+    .sizeof                        equ $-.field
 endstruc
 
 extern Game_new, Game_draw, Game_update, Game_set_moving_direction, Game_rotate
