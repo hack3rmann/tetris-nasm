@@ -1055,6 +1055,48 @@ Game_kick_figure:
     %assign hoffset hoffset+1
     %endrep
 
+    ; if self.cur_figure_type == FigureType_I {
+    cmp byte [esi+Game.cur_figure_type], FigureType_I
+    jne .cur_figure_type_is_not_FigureType_I
+
+        %assign hoffset -2
+        %rep 5
+            %assign voffset -2
+            %rep 2
+            %push
+
+                ; self.figure_row = row_before + voffset
+                mov eax, dword [ebp+.row_before]
+                add eax, voffset
+                mov dword [esi+Game.figure_row], eax
+
+                ; self.figure_col = col_before + hoffset
+                mov eax, dword [ebp+.col_before]
+                add eax, hoffset
+                mov dword [esi+Game.figure_col], eax
+
+                ; if self.handle_collisions(0, 0) == CollisionType::None {
+                push 0
+                push 0
+                push esi
+                call Game_handle_collisions
+                cmp al, CollisionType_None
+                jne %$.collision
+
+                    ; return true
+                    mov al, 1
+                    jmp .exit
+                ; }
+                %$.collision:
+
+            %pop
+            %assign voffset voffset+1
+            %endrep
+        %assign hoffset hoffset+1
+        %endrep
+    ; }
+    .cur_figure_type_is_not_FigureType_I:
+
     ; self.figure_row = row_before
     mov eax, dword [ebp+.row_before]
     mov dword [esi+Game.figure_row], eax
