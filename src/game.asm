@@ -226,11 +226,14 @@ Game_new:
     push eax
     call GameField_new
 
-    ; return.cur_figure_type = CellType::I
-    mov byte [edi+Game.cur_figure_type], CellType_I
+    ; return.cur_figure_type = Game::random_figure_type(0)
+    push 0
+    call Game_random_figure_type
+    mov byte [edi+Game.cur_figure_type], al
 
-    ; return.cur_figure = Game::FIGURES.i
-    MEM_COPY edi+Game.cur_figure, Game_FIGURES.i, 16
+    ; return.cur_figure = Game::FIGURES[return.cur_figure_type]
+    shl eax, 4
+    MEM_COPY edi+Game.cur_figure, Game_FIGURES+eax, 16
 
     ; self.figure_row = Game_DEFAULT_FIGURE_ROW
     mov dword [edi+Game.figure_row], Game_DEFAULT_FIGURE_ROW
@@ -262,16 +265,21 @@ Game_new:
     call srand
     mov esp, dword [ebp+.prev_esp]
 
-    %assign i 0
-    %rep Game.next_figure_types.len
+    ; return.next_figure_types[0] = Game::random_figure_type(return.cur_figure_type)
+    mov al, byte [edi+Game.cur_figure_type]
+    movzx eax, al
+    push eax
+    call Game_random_figure_type
+    mov byte [edi+Game.next_figure_types+0], al
 
-        ; return.next_figure_types[i] = rand() % 7 + 1
-        call rand
-        xor edx, edx
-        mov ecx, 7
-        div ecx
-        inc edx
-        mov byte [edi+Game.next_figure_types+i], dl
+    %assign i 1
+    %rep Game.next_figure_types.len - 1
+
+        ; return.next_figure_types[i] = Game::random_figure_type(return.next_figure_types[i-1])
+        mov al, byte [edi+Game.next_figure_types+i-1]
+        push eax
+        call Game_random_figure_type
+        mov byte [edi+Game.next_figure_types+i], al
 
     %assign i i+1
     %endrep
@@ -317,13 +325,13 @@ Game_next_figure:
     %assign i i+1
     %endrep
 
-    ; next_figures[Game_N_NEXT_FIGURES - 1] = rand() % 7 + 1
-    call rand
-    xor edx, edx
-    mov ecx, 7
-    div ecx
-    inc edx
-    mov byte [esi+Game_N_NEXT_FIGURES-1], dl
+    ; next_figures[Game_N_NEXT_FIGURES - 1]
+    ;     = Game::random_figure_type(next_figures[Game_N_NEXT_FIGURES - 2])
+    mov al, byte [esi+Game_N_NEXT_FIGURES-2]
+    movzx eax, al
+    push eax
+    call Game_random_figure_type
+    mov byte [esi+Game_N_NEXT_FIGURES-1], al
 
     ; return result
     mov eax, dword [ebp+.result]
@@ -331,6 +339,38 @@ Game_next_figure:
     add esp, .stack_size
 
     pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::random_figure_type(prev: FigureType) -> FigureType
+Game_random_figure_type:
+    push ebp
+    mov ebp, esp
+
+    .argbase            equ 8
+    .prev               equ .argbase+0
+    
+    .args_size          equ .prev-.argbase+4
+
+    ; loop {
+    .try_again:
+        ; let (result := edx) = rand() % 7 + 1
+        call rand
+        xor edx, edx
+        mov ecx, 7
+        div ecx
+        inc edx
+    
+        ; if result != prev { break }
+        cmp edx, dword [ebp+.prev]
+        je .try_again
+    ; }
+
+    ; return result
+    mov eax, edx
+    
     pop ebp
     ret .args_size
 
