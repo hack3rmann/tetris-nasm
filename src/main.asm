@@ -172,6 +172,19 @@ main:
         ; }
         .VS_SPACE_is_not_pressed:
 
+        ; if keyboard.just_pressed('Q') {
+        push "Q"
+        push keyboard
+        call Keyboard_just_pressed
+        test al, al
+        jz .Q_is_not_pressed
+        
+            ; game.save_load_piece()
+            push game
+            call Game_save_load_piece
+        ; }
+        .Q_is_not_pressed:
+
         ; game.speed_multiplier = speed_multiplier
         fld dword [speed_multiplier]
         fstp dword [game+Game.speed_multiplier]

@@ -317,6 +317,12 @@ Game_new:
     call Game_random_figure_type
     mov byte [edi+Game.cur_figure_type], al
 
+    ; return.saved_figure_type = 0
+    mov byte [edi+Game.saved_figure_type], 0
+
+    ; return.saved_last_time = false
+    mov byte [edi+Game.saved_last_time], 0
+
     ; return.cur_figure = Game::FIGURES[return.cur_figure_type]
     mov edx, eax
     shl edx, 4
@@ -771,7 +777,8 @@ Game_update:
         push eax
         call Game_next_figure
 
-        ; self.switch_piece(next_type)
+        ; self.switch_piece(next_type, do_write=true)
+        push 1
         movzx eax, al
         push eax
         push esi
@@ -838,7 +845,7 @@ Game_update:
 
 
 ; #[stdcall]
-; fn Game::switch_piece(&mut self, next_type: CellType)
+; fn Game::switch_piece(&mut self, next_type: CellType, do_write: bool)
 Game_switch_piece:
     push ebp
     push esi
@@ -847,40 +854,50 @@ Game_switch_piece:
     .argbase            equ 12
     .self               equ .argbase+0
     .next_type          equ .argbase+4
+    .do_write           equ .argbase+8
 
-    .args_size          equ .next_type-.argbase+4
+    .args_size          equ .do_write-.argbase+4
 
     ; self := esi
     mov esi, dword [ebp+.self]
 
-    %assign relative_row 0
-    %rep 4
-        %assign relative_col 0
+    ; if do_write {
+    cmp dword [ebp+.do_write], 0
+    je .do_not_write
+
+        %assign relative_row 0
         %rep 4
-        %push
-            
-            ; if 0 == self.cur_figure[relative_row, relative_col] { continue }
-            cmp byte [esi+Game.cur_figure+relative_row*4+relative_col], 0
-            je %$.continue
+            %assign relative_col 0
+            %rep 4
+            %push
+                
+                ; if 0 == self.cur_figure[relative_row, relative_col] { continue }
+                cmp byte [esi+Game.cur_figure+relative_row*4+relative_col], 0
+                je %$.continue
 
-            ; self.field.cells[self.figure_row + relative_row,
-            ;                  self.figure_col + relative_col].type = self.cur_figure_type
-            mov eax, dword [esi+Game.figure_row]
-            add eax, relative_row
-            mov edx, GameField_WIDTH
-            mul edx
-            add eax, dword [esi+Game.figure_col]
-            add eax, relative_col
-            mov dl, byte [esi+Game.cur_figure_type]
-            movzx edx, dl
-            mov byte [esi+Game.field+GameField.cells+4*eax+Cell.type], dl
+                ; self.field.cells[self.figure_row + relative_row,
+                ;                  self.figure_col + relative_col].type = self.cur_figure_type
+                mov eax, dword [esi+Game.figure_row]
+                add eax, relative_row
+                mov edx, GameField_WIDTH
+                mul edx
+                add eax, dword [esi+Game.figure_col]
+                add eax, relative_col
+                mov dl, byte [esi+Game.cur_figure_type]
+                movzx edx, dl
+                mov byte [esi+Game.field+GameField.cells+4*eax+Cell.type], dl
 
-            %$.continue:
-        %pop
-        %assign relative_col relative_col+1
+                %$.continue:
+            %pop
+            %assign relative_col relative_col+1
+            %endrep
+        %assign relative_row relative_row+1
         %endrep
-    %assign relative_row relative_row+1
-    %endrep
+
+        ; self.saved_last_time = false
+        mov byte [esi+Game.saved_last_time], 0
+    ; }
+    .do_not_write:
 
     ; self.cur_figure_type = next_type
     mov eax, dword [ebp+.next_type]
@@ -1020,7 +1037,8 @@ Game_drop_piece:
     push eax
     call Game_next_figure
 
-    ; self.switch_piece(next_type)
+    ; self.switch_piece(next_type, do_write=true)
+    push 1
     movzx eax, al
     push eax
     push esi
@@ -1222,6 +1240,74 @@ Game_rotate:
     ; }
     .kick_success:
 
+    add esp, .stack_size
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::save_load_piece(&mut self)
+Game_save_load_piece:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .next_type          equ -4
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+    .stack_size         equ -.next_type
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; if self.saved_figure_type == 0 {
+    cmp byte [esi+Game.saved_figure_type], 0
+    jne .saved_figure_type_is_not_zero
+
+        ; next_type = Self::next_figure(&mut self.next_figure_types)
+        lea eax, dword [esi+Game.next_figure_types]
+        push eax
+        call Game_next_figure
+        movzx eax, al
+        mov dword [ebp+.next_type], eax
+    
+        ; self.saved_figure_type = self.cur_figure_type
+        mov al, byte [esi+Game.cur_figure_type]
+        mov byte [esi+Game.saved_figure_type], al
+
+        jmp .next_type_handle_exit
+    ; } else {
+    .saved_figure_type_is_not_zero:
+
+        ; swap(&mut self.cur_figure_type, &mut self.saved_figure_type)
+        mov al, byte [esi+Game.cur_figure_type]
+        xchg al, byte [esi+Game.saved_figure_type]
+        mov byte [esi+Game.cur_figure_type], al
+
+        ; next_type = self.cur_figure_type
+        mov al, byte [esi+Game.cur_figure_type]
+        movzx eax, al
+        mov dword [ebp+.next_type], eax
+    ; }
+    .next_type_handle_exit:
+
+    ; self.saved_last_time = true
+    mov byte [esi+Game.saved_last_time], 1
+
+    ; self.switch_piece(next_type, false)
+    push 0
+    push dword [ebp+.next_type]
+    push esi
+    call Game_switch_piece
+
+.exit:
     add esp, .stack_size
 
     pop esi

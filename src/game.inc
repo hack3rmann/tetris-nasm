@@ -129,11 +129,13 @@ struc Game
     .projected_figure              resb ALIGNED(1 * .projected_figure.len)
     .projection_row                resd 1
     .projection_col                resd 1
+    .saved_figure_type             resb ALIGNED(2)
+    .saved_last_time               equ .saved_figure_type+1
     .sizeof                        equ ALIGNED($-.field)
 endstruc
 
 extern Game_new, Game_draw, Game_update, Game_set_moving_direction, Game_rotate
-extern Game_drop_piece
+extern Game_drop_piece, Game_save_load_piece
 
 
 
