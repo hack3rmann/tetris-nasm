@@ -3,6 +3,7 @@
 
 %include "lib/winapi/windows.inc"
 %include "lib/vec.inc"
+%include "lib/mem.inc"
 
 
 
@@ -15,7 +16,7 @@ section .rodata align 4
 struc WindowClass
     .hinstance  resd 1
     .name       resd 1
-    .sizeof     equ $-.hinstance
+    .sizeof     equ ALIGNED($-.hinstance)
 endstruc
 
 extern WindowClass_new, WindowClass_drop, WindowClass_with_icon
@@ -30,7 +31,7 @@ struc Window
     .subscribers    resb Vec32.sizeof
     .width          resd 1
     .height         resd 1
-    .sizeof         equ $-.hwnd
+    .sizeof         equ ALIGNED($-.hwnd)
 endstruc
 
 %define Window_DEFAULT_POS_X 100

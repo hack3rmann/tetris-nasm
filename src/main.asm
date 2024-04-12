@@ -2,6 +2,7 @@
 %include "lib/keyboard.inc"
 %include "lib/graphics.inc"
 %include "src/game.inc"
+%include "src/event.inc"
 %include "lib/float_consts.inc"
 %include "lib/debug/print.inc"
 
@@ -34,6 +35,9 @@ section .text
 main:
     push ebp
     mov ebp, esp
+
+    ; EventDispatcher::init()
+    call EventDispatcher_init
 
     ; window = Window::new(window_name, 800, 600)
     push 600
@@ -178,7 +182,7 @@ main:
         call Keyboard_just_pressed
         test al, al
         jz .Q_is_not_pressed
-        
+
             ; game.try_swap_saved()
             push game
             call Game_try_swap_saved
@@ -211,6 +215,9 @@ main:
         ; keyboard.update()
         push keyboard
         call Keyboard_update
+
+        ; EventDispatcher::dispatch_all()
+        call EventDispatcher_dispatch_all
 
         jmp .msg_loop_start
     ; }

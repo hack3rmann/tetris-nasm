@@ -2,6 +2,7 @@
 %define _TETRIS_LIB_GRAPHICS_
 
 %include "lib/winapi/windows.inc"
+%include "lib/mem.inc"
 
 
 
@@ -18,7 +19,7 @@ struc ScreenImage
     .changed            resb 1
     ._padding           resb 3
     .bitmap_info        resb BITMAPINFO.sizeof
-    .sizeof             equ $-.width
+    .sizeof             equ ALIGNED($-.width)
 endstruc
 
 extern ScreenImage_new, ScreenImage_drop, ScreenImage_resize
@@ -29,7 +30,7 @@ extern ScreenImage_show, ScreenImage_fill_box
 
 struc Graphics
     .image              resb ScreenImage.sizeof
-    .sizeof             equ $-.image
+    .sizeof             equ ALIGNED($-.image)
 endstruc
 
 extern Graphics_new, Graphics_drop, Graphics_on_window_resize
