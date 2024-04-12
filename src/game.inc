@@ -135,7 +135,7 @@ struc Game
 endstruc
 
 extern Game_new, Game_draw, Game_update, Game_set_moving_direction, Game_rotate
-extern Game_drop_piece, Game_save_load_piece
+extern Game_drop_piece, Game_save_load_piece, Game_try_swap_saved
 
 
 

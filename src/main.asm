@@ -179,9 +179,9 @@ main:
         test al, al
         jz .Q_is_not_pressed
         
-            ; game.save_load_piece()
+            ; game.try_swap_saved()
             push game
-            call Game_save_load_piece
+            call Game_try_swap_saved
         ; }
         .Q_is_not_pressed:
 

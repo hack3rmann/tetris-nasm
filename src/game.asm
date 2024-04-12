@@ -568,6 +568,11 @@ Game_draw:
     push esi
     call Game_draw_next_pieces
 
+    ; self.draw_saved_piece(image)
+    push edi
+    push esi
+    call Game_draw_saved_piece
+
     pop edi
     pop esi
     pop ebp
@@ -681,6 +686,121 @@ Game_draw_next_pieces:
         %assign row row+1
         %endrep
     %assign i i+1
+    %endrep
+
+    add esp, .stack_size
+
+    pop edi
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::draw_saved_piece(&self, image: &mut ScreenImage)
+Game_draw_saved_piece:
+    push ebp
+    push esi
+    push edi
+    mov ebp, esp
+
+    .color              equ -12
+    .bottom             equ -8
+    .left               equ -4
+
+    .argbase            equ 16
+    .self               equ .argbase+0
+    .image              equ .argbase+4
+
+    .args_size          equ .image-.argbase+4
+    .stack_size         equ -.color
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; image := edi
+    mov edi, dword [ebp+.image]
+
+    ; left = image.width / 2 - FIELD_WIDTH_PIXELS / 2 - 5 * CELL_SIZE_PIXELS
+    mov eax, dword [edi+ScreenImage.width]
+    shr eax, 1
+    sub eax, FIELD_WIDTH_PIXELS / 2
+    sub eax, 5 * CELL_SIZE_PIXELS
+    mov dword [ebp+.left], eax
+
+    ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + (GameField_HEIGHT - 4) * CELL_SIZE_PIXELS
+    mov eax, dword [edi+ScreenImage.height]
+    shr eax, 1
+    sub eax, FIELD_HEIGHT_PIXELS / 2
+    add eax, (GameField_HEIGHT - 4) * CELL_SIZE_PIXELS
+    mov dword [ebp+.bottom], eax
+
+    ; image.fill_rect(left,
+    ;                 bottom,
+    ;                 4 * CELL_SIZE_PIXELS,
+    ;                 4 * CELL_SIZE_PIXELS,
+    ;                 Game_BACKGROUNG_COLOR)
+    push Game_BACKGROUND_COLOR
+    push 4 * CELL_SIZE_PIXELS
+    push 4 * CELL_SIZE_PIXELS
+    push dword [ebp+.bottom]
+    push dword [ebp+.left]
+    push edi
+    call ScreenImage_fill_rect
+
+    %assign row 0
+    %rep 4
+        %assign col 0
+        %rep 4
+        %push
+
+            ; let (piece_index := ecx) = self.saved_figure_type
+            mov cl, byte [esi+Game.saved_figure_type]
+            movzx ecx, cl
+
+            ; if 0 == Game::FIGURES[piece_index][row, col] {
+            mov edx, ecx
+            shl edx, 4
+            cmp byte [Game_FIGURES+edx+(row*4+col)], 0
+            jne %$.piece_not_empty
+
+                ; color = Game::CELL_COLORS[0]
+                mov eax, dword [Game_CELL_COLORS+0]
+                mov dword [ebp+.color], eax
+
+            jmp %$.piece_handle_end
+            ; } else {
+            %$.piece_not_empty:
+
+                ; color = Game::CELL_COLORS[piece_index]
+                mov eax, dword [Game_CELL_COLORS+4*ecx]
+                mov dword [ebp+.color], eax
+            ; }
+            %$.piece_handle_end:
+
+            ; image.fill_rect(left + col * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS,
+            ;                 bottom + row * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS,
+            ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+            ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+            ;                 color)
+            push dword [ebp+.color]
+            push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+            push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+            mov eax, dword [ebp+.bottom]
+            add eax, row * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+            push eax
+            mov eax, dword [ebp+.left]
+            add eax, col * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+            push eax
+            push edi
+            call ScreenImage_fill_rect
+
+        %pop
+        %assign col col+1
+        %endrep
+    %assign row row+1
     %endrep
 
     add esp, .stack_size
@@ -1242,6 +1362,39 @@ Game_rotate:
 
     add esp, .stack_size
 
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::try_swap_saved(&mut self) -> success: bool
+Game_try_swap_saved:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+    
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; if self.saved_last_time { return false }
+    xor al, al
+    cmp byte [esi+Game.saved_last_time], 0
+    jne .exit
+    
+    ; self.save_load_piece()
+    push esi
+    call Game_save_load_piece
+
+    ; return true
+    mov al, 1
+
+.exit:
     pop esi
     pop ebp
     ret .args_size
