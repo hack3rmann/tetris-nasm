@@ -159,6 +159,19 @@ main:
         ; }
         .R_is_not_pressed:
 
+        ; if keyboard.just_pressed(VK_SPACE) {
+        push VK_SPACE
+        push keyboard
+        call Keyboard_just_pressed
+        test al, al
+        jz .VS_SPACE_is_not_pressed
+        
+            ; game.drop_piece()
+            push game
+            call Game_drop_piece
+        ; }
+        .VS_SPACE_is_not_pressed:
+
         ; game.speed_multiplier = speed_multiplier
         fld dword [speed_multiplier]
         fstp dword [game+Game.speed_multiplier]

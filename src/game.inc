@@ -109,7 +109,7 @@ extern GameField_new, GameField_draw, GameField_draw_cell
 %define Game_DEFAULT_FIGURE_COL (GameField_WIDTH / 2 - 2)
 %define Game_LIE_TIMEOUT 3
 %define Game_N_NEXT_FIGURES 3
-%define Game_PROJECTION_THICKNESS 3
+%define Game_PROJECTION_THICKNESS 1
 
 struc Game
     .field                         resb GameField.sizeof
@@ -133,6 +133,7 @@ struc Game
 endstruc
 
 extern Game_new, Game_draw, Game_update, Game_set_moving_direction, Game_rotate
+extern Game_drop_piece
 
 
 

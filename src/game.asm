@@ -993,6 +993,45 @@ Game_project_piece:
 
 
 ; #[stdcall]
+; Game::drop_piece(&mut self)
+Game_drop_piece:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; self.figure_row = self.projection_row
+    mov eax, dword [esi+Game.projection_row]
+    mov dword [esi+Game.figure_row], eax
+
+    ; self.figure_col = self.projection_col
+    mov eax, dword [esi+Game.projection_col]
+    mov dword [esi+Game.figure_col], eax
+
+    ; let (next_type := al) = Self::next_figure(&mut self.next_figure_types)
+    lea eax, dword [esi+Game.next_figure_types]
+    push eax
+    call Game_next_figure
+
+    ; self.switch_piece(next_type)
+    movzx eax, al
+    push eax
+    push esi
+    call Game_switch_piece
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; fn Game::handle_collisions(&mut self, hoffset: i32, voffset: i32) -> CollisionType
 Game_handle_collisions:
     push ebp
