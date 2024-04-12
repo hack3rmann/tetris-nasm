@@ -23,7 +23,7 @@ endstruc
 
 extern ScreenImage_new, ScreenImage_drop, ScreenImage_resize
 extern ScreenImage_set_pixel, ScreenImage_fill_rect, ScreenImage_fill
-extern ScreenImage_show
+extern ScreenImage_show, ScreenImage_fill_box
 
 
 

@@ -314,6 +314,76 @@ ScreenImage_fill_rect:
 
 
 ; #[stdcall]
+; fn ScreenImage::fill_box(
+;     &mut self, left: u32, bottom: u32,
+;     width: u32, height: u32, thickness: u32, value: u32)
+ScreenImage_fill_box:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase                equ 12
+    .self                   equ .argbase+0
+    .left                   equ .argbase+4
+    .bottom                 equ .argbase+8
+    .width                  equ .argbase+12
+    .height                 equ .argbase+16
+    .thickness              equ .argbase+20
+    .value                  equ .argbase+24
+
+    .args_size              equ .value-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; self.fill_rect(left, bottom, thickness, height, value)
+    push dword [ebp+.value]
+    push dword [ebp+.height]
+    push dword [ebp+.thickness]
+    push dword [ebp+.bottom]
+    push dword [ebp+.left]
+    push esi
+    call ScreenImage_fill_rect
+
+    ; self.fill_rect(left, bottom, width, thickness, value)
+    push dword [ebp+.value]
+    push dword [ebp+.thickness]
+    push dword [ebp+.width]
+    push dword [ebp+.bottom]
+    push dword [ebp+.left]
+    push esi
+    call ScreenImage_fill_rect
+
+    ; self.fill_rect(left + width - thickness, bottom, thickness, height, value)
+    push dword [ebp+.value]
+    push dword [ebp+.height]
+    push dword [ebp+.thickness]
+    push dword [ebp+.bottom]
+    mov eax, dword [ebp+.left]
+    add eax, dword [ebp+.width]
+    sub eax, dword [ebp+.thickness]
+    push eax
+    push esi
+    call ScreenImage_fill_rect
+
+    ; self.fill_rect(left, bottom + height - thickness, width, thickness, value)
+    push dword [ebp+.value]
+    push dword [ebp+.thickness]
+    push dword [ebp+.width]
+    mov eax, dword [ebp+.bottom]
+    add eax, dword [ebp+.height]
+    sub eax, dword [ebp+.thickness]
+    push eax
+    push dword [ebp+.left]
+    push esi
+    call ScreenImage_fill_rect
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; ScreenImage::fill(&mut self, value: u32)
 ScreenImage_fill:
     push ebp

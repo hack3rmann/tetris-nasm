@@ -84,8 +84,8 @@ section .rodata align 4
 struc Cell
     ; : CellType
     .type                   resb 1
-    .do_clear               resb 1 + 2
-    .sizeof                 equ $-.type
+    .do_clear               resb 1
+    .sizeof                 equ ALIGNED($-.type)
 endstruc
 
 
@@ -98,7 +98,7 @@ struc GameField
     ; : [Cell; Self::N_CELLS]
     .cells.len              equ GameField_N_CELLS
     .cells                  resb Cell.sizeof * .cells.len
-    .sizeof                 equ $-.cells
+    .sizeof                 equ ALIGNED($-.cells)
 endstruc
 
 extern GameField_new, GameField_draw, GameField_draw_cell
@@ -109,12 +109,13 @@ extern GameField_new, GameField_draw, GameField_draw_cell
 %define Game_DEFAULT_FIGURE_COL (GameField_WIDTH / 2 - 2)
 %define Game_LIE_TIMEOUT 3
 %define Game_N_NEXT_FIGURES 3
+%define Game_PROJECTION_THICKNESS 3
 
 struc Game
     .field                         resb GameField.sizeof
     .cur_figure_type               resb ALIGNED(1)
     .cur_figure.len                equ  16
-    .cur_figure                    resb 1 * .cur_figure.len
+    .cur_figure                    resb ALIGNED(1 * .cur_figure.len)
     .figure_row                    resd 1
     .figure_col                    resd 1
     .fall_speed                    resd 1
@@ -124,7 +125,11 @@ struc Game
     .moving_direction              resd 1
     .next_figure_types.len         equ Game_N_NEXT_FIGURES
     .next_figure_types             resb ALIGNED(.next_figure_types.len)
-    .sizeof                        equ $-.field
+    .projected_figure.len          equ .cur_figure.len
+    .projected_figure              resb ALIGNED(1 * .projected_figure.len)
+    .projection_row                resd 1
+    .projection_col                resd 1
+    .sizeof                        equ ALIGNED($-.field)
 endstruc
 
 extern Game_new, Game_draw, Game_update, Game_set_moving_direction, Game_rotate
