@@ -7,6 +7,9 @@ extern memset, memcpy, rand, srand, time
 
 
 
+section .data align 4
+    Game_N_I_SKIPS dd 0
+
 section .rodata align 4
     float_fmt db "%f", 10, 0
 
@@ -472,9 +475,29 @@ Game_random_figure_type:
         je .try_again
     ; }
 
+    ; if result != FigureType_I { Game::N_I_SKIPS += 1 }
+    cmp edx, FigureType_I
+    setne al
+    movzx eax, al
+    add dword [Game_N_I_SKIPS], eax
+
+    ; if N_I_SKIPS == 10 {
+    cmp dword [Game_N_I_SKIPS], 10
+    jne .N_I_SKIPS_is_10
+    
+        ; N_I_SKIPS = 0
+        mov dword [Game_N_I_SKIPS], 0
+
+        ; return FigureType_I
+        mov eax, FigureType_I
+        jmp .exit
+    ; }
+    .N_I_SKIPS_is_10:
+
     ; return result
     mov eax, edx
     
+.exit:
     pop ebp
     ret .args_size
 
