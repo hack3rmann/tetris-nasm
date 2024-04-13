@@ -23,13 +23,25 @@ endstruc
 
 
 
+%define Subscriber_CAPACITY_BYTES 128
+
+struc Subscriber
+    .env.sizeof             equ Subscriber_CAPACITY_BYTES-4
+    .env                    resb .env.sizeof
+    ; fn(env: Env, &mut Event)
+    .callback               resd 1
+    .sizeof                 equ ALIGNED($-.callback)
+endstruc
+
+
+
 struc EventDispatcher
     ; : Vec<Event>
     .events                 resb Vec.sizeof
 
-    ; [Vec32<fn(&Event)>; EventType_COUNT]
+    ; [Vec<Subscriber>; EventType_COUNT]
     .subscribers.len        equ EventType_COUNT
-    .subscribers.elem_size  equ Vec32.sizeof
+    .subscribers.elem_size  equ Vec.sizeof
     .subscribers            resb .subscribers.len * .subscribers.elem_size
 
     .sizeof                 equ ALIGNED($-.events)

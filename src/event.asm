@@ -20,7 +20,7 @@ EventDispatcher_new:
     ; return := edi
     mov edi, dword [ebp+.return]
 
-    ; return.events = Vec::new()
+    ; return.events = Vec::new(sizeof(Event))
     push Event.sizeof
     lea eax, dword [edi+EventDispatcher.events]
     push eax
@@ -29,10 +29,11 @@ EventDispatcher_new:
     %assign i 0
     %rep EventDispatcher.subscribers.len
 
-        ; return.subscribers[i] = Vec32::new()
+        ; return.subscribers[i] = Vec::new(sizeof(Subscriber))
+        push Subscriber.sizeof
         lea eax, dword [edi+EventDispatcher.subscribers+i*EventDispatcher.subscribers.elem_size]
         push eax
-        call Vec32_new
+        call Vec_new
 
     %assign i i+1
     %endrep
@@ -73,10 +74,10 @@ EventDispatcher_drop:
     %assign i 0
     %rep EventDispatcher.subscribers.len
 
-        ; Vec32::drop(&mut self.subscribers[i])
+        ; Vec::drop(&mut self.subscribers[i])
         lea eax, dword [esi+EventDispatcher.subscribers+i*EventDispatcher.subscribers.elem_size]
         push eax
-        call Vec32_drop
+        call Vec_drop
 
     %assign i i+1
     %endrep
@@ -139,14 +140,14 @@ EventDispatcher_dispatch_all:
         ; subscribers = &mut EVENT_DISPATCHER.subscribers[event.type]
         mov ecx, dword [ebp+.event]
         mov ecx, dword [ecx+Event.type]
-        mov eax, Vec32.sizeof
+        mov eax, Vec.sizeof
         mul ecx
         add eax, EVENT_DISPATCHER+EventDispatcher.subscribers
         mov dword [ebp+.subscribers], eax
 
         ; n_subscribers = subscribers.len
         mov eax, dword [ebp+.subscribers]
-        mov eax, dword [eax+Vec32.len]
+        mov eax, dword [eax+Vec.len]
         mov dword [ebp+.n_subscribers], eax
 
         ; for sub_index in 0..n_subscribers {
@@ -156,12 +157,15 @@ EventDispatcher_dispatch_all:
         cmp dword [ebp+.sub_index], ecx
         jae .for_sub_index_end
 
-            ; (subscribers[sub_index])(event)
+            ; (subscribers[sub_index].callback)(subscribers[sub_index].env, event)
             mov eax, dword [ebp+.subscribers]
-            mov eax, dword [eax+Vec32.ptr]
+            mov eax, dword [eax+Vec.ptr]
             mov ecx, dword [ebp+.sub_index]
             lea eax, dword [eax+4*ecx]
-            mov ecx, dword [eax]
+            mov ecx, dword [eax+Subscriber.callback]
+            lea edx, dword [eax+Subscriber.env]
+            sub esp, Subscriber.env.sizeof
+            MEM_COPY esp, edx, Subscriber.env.sizeof
             push dword [ebp+.event]
             call ecx
 
@@ -187,25 +191,25 @@ EventDispatcher_dispatch_all:
 
 
 ; #[stdcall]
-; fn EventDispatcher::add_listener(event_type: EventType, callback: fn(&mut Event))
+; fn EventDispatcher::add_listener(event_type: EventType, subscriber: &mut Subscriber)
 EventDispatcher_add_listener:
     push ebp
     mov ebp, esp
 
     .argbase                equ 8
     .event_type             equ .argbase+0
-    .callback               equ .argbase+4
+    .subscriber             equ .argbase+4
 
-    .args_size              equ .callback-.argbase+4
+    .args_size              equ .subscriber-.argbase+4
 
-    ; EVENT_DISPATCHER.subscribers[event_type].push(callback)
-    push dword [ebp+.callback]
+    ; EVENT_DISPATCHER.subscribers[event_type].push(subscriber)
+    push dword [ebp+.subscriber]
     mov eax, dword [ebp+.event_type]
-    mov edx, Vec32.sizeof
+    mov edx, Vec.sizeof
     mul edx
     add eax, EVENT_DISPATCHER+EventDispatcher.subscribers
     push eax
-    call Vec32_push
+    call Vec_push
 
     pop ebp
     ret .args_size
