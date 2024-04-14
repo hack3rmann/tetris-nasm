@@ -6,8 +6,6 @@
 %include "lib/debug/print.inc"
 %include "src/event.inc"
 
-extern printf
-
 
 section .bss align 4
     window      resb Window.sizeof
@@ -16,7 +14,6 @@ section .bss align 4
     game        resb Game.sizeof
     prev_time   resd 1
     duration    resd 1
-    lc_sub      resb Subscriber.sizeof
 
 section .data align 4
     exit_code           dd 0
@@ -26,6 +23,7 @@ section .data align 4
 section .rodata align 4
     window_name db "Tetris", 0, 0
     thousand    dd 1_000.0
+    hello_word  db "Score:       10290190293", 0
 
 section .text
     global main
@@ -46,17 +44,6 @@ main:
     push window_name
     push window
     call Window_new
-
-    ; lc_sub = mem::zeroed()
-    MEM_ZEROED Subscriber, lc_sub
-
-    ; lc_sub.callback = on_line_clear
-    mov dword [lc_sub+Subscriber.callback], on_line_clear
-
-    ; EventDispatcher::add_listener(EventType_LineClear, &mut lc_sub)
-    push lc_sub
-    push EventType_LineClear
-    call EventDispatcher_add_listener
 
     ; keyboard = Keyboard::new()
     push keyboard
@@ -228,6 +215,15 @@ main:
         push keyboard
         call Keyboard_update
 
+        ; graphics.image.draw_text(20, 100, 4, hello_word, %color)
+        push RGB(169, 177, 180)
+        push hello_word
+        push 2
+        push 100
+        push 20
+        push graphics+Graphics.image
+        call ScreenImage_draw_text
+
         ; EventDispatcher::dispatch_all()
         call EventDispatcher_dispatch_all
 
@@ -249,26 +245,3 @@ main:
 
     pop ebp
     ret
-
-
-; #[stdcall]
-; fn on_line_clear(_env: Env, event: &mut Event)
-on_line_clear:
-    push ebp
-    push esi
-    mov ebp, esp
-
-    .argbase            equ 12
-    ._env               equ .argbase+0
-    .event              equ ._env+Subscriber.env.sizeof
-
-    .args_size          equ .event-.argbase+4
-
-    ; event := esi
-    mov esi, dword [ebp+.event]
-
-    DEBUGLN `type = `, dword [esi+Event.type], `, row = `, dword [esi+LineClearEvent.row]
-
-    pop esi
-    pop ebp
-    ret .args_size

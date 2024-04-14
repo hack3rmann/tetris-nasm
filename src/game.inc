@@ -148,4 +148,13 @@ endstruc
 
 
 
+struc Score
+    .value                          resd 1
+    .sizeof                         equ ALIGNED($-.value)
+endstruc
+
+extern Score_new
+
+
+
 %endif ; !_TETRIS_GAME_

@@ -1766,3 +1766,26 @@ Game_clear_lines:
     pop edi
     pop ebp
     ret .args_size
+
+
+; #[stdcall]
+; fn Score::new() -> #[mem(always)] Self
+Score_new:
+    push ebp
+    push edi
+    mov ebp, esp
+
+    .argbase                equ 12
+    .return                 equ .argbase+0
+
+    .args_size              equ .return-.argbase+4
+
+    ; return := edi
+    mov edi, dword [ebp+.return]
+
+    ; return.value = 0
+    mov dword [edi+Score.value], 0
+
+    pop edi
+    pop ebp
+    ret .args_size
