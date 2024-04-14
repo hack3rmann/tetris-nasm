@@ -23,7 +23,6 @@ section .data align 4
 section .rodata align 4
     window_name db "Tetris", 0, 0
     thousand    dd 1_000.0
-    hello_word  db "Score:       10290190293", 0
 
 section .text
     global main
@@ -214,15 +213,6 @@ main:
         ; keyboard.update()
         push keyboard
         call Keyboard_update
-
-        ; graphics.image.draw_text(20, 100, 4, hello_word, %color)
-        push RGB(169, 177, 180)
-        push hello_word
-        push 2
-        push 100
-        push 20
-        push graphics+Graphics.image
-        call ScreenImage_draw_text
 
         ; EventDispatcher::dispatch_all()
         call EventDispatcher_dispatch_all

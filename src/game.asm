@@ -1,17 +1,27 @@
 %include "src/game.inc"
 %include "lib/mem.inc"
 %include "lib/numeric.inc"
+%include "lib/fonts.inc"
 %include "lib/debug/print.inc"
 
-extern memset, memcpy, rand, srand, time
+extern memset, memcpy, rand, srand, time, sprintf, strlen, printf
 
 
 
 section .data align 4
-    Game_N_I_SKIPS dd 0
+    Game_N_I_SKIPS          dd 0
+    Game_SCORE              dd 0
+    Game_N_LINES_CLEARED    dd 0
+    Game_LEVEL              dd 1
+    MAX_SCORE_STRING_SIZE   equ 11
+    MAX_LINES_STRING_SIZE   equ 11
 
 section .rodata align 4
-    float_fmt db "%f", 10, 0
+    float_fmt           db "%f", 10, 0
+    U32_FMT             db "%u", 0
+    SCORE_STR           db "Score", 0
+    LINES_STR           db "Lines", 0
+    LEVEL_STR           db "Level", 0
 
 section .text
 
@@ -596,6 +606,11 @@ Game_draw:
     push esi
     call Game_draw_saved_piece
 
+    ; self.draw_score(image)
+    push edi
+    push esi
+    call Game_draw_score
+
     pop edi
     pop esi
     pop ebp
@@ -835,6 +850,286 @@ Game_draw_saved_piece:
 
 
 ; #[stdcall]
+; Game::draw_score(&self, image: &mut ScreenImage)
+Game_draw_score:
+    push ebp
+    push esi
+    push edi
+    mov ebp, esp
+
+    .level_str              equ -ALIGNED(MAX_SCORE_STRING_SIZE)
+    .level_len              equ -4+.level_str
+    .level_size             equ -4+.level_len
+    .lines_size             equ -4+.level_size
+    .score_size             equ -4+.lines_size
+    .box_left               equ -4+.score_size
+    .box_bottom             equ -4+.box_left
+    .score_str              equ -ALIGNED(MAX_SCORE_STRING_SIZE)+.box_bottom
+    .score_len              equ -4+.score_str
+    .lines_str              equ -ALIGNED(MAX_SCORE_STRING_SIZE)+.score_len
+    .lines_len              equ -4+.lines_str
+
+    .argbase                equ 16
+    .self                   equ .argbase+0
+    .image                  equ .argbase+4
+    
+    .args_size              equ .image-.argbase+4
+    .stack_size             equ -.lines_len
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; image := edi
+    mov edi, dword [ebp+.image]
+
+    ; sprintf(score_str, U32_FMT, Game_SCORE)
+    push dword [Game_SCORE]
+    push U32_FMT
+    lea eax, dword [ebp+.score_str]
+    push eax
+    call sprintf
+    add esp, 12
+
+    ; sprintf(lines_str, U32_FMT, Game_N_LINES_CLEARED)
+    push dword [Game_N_LINES_CLEARED]
+    push U32_FMT
+    lea eax, dword [ebp+.lines_str]
+    push eax
+    call sprintf
+    add esp, 12
+
+    ; sprintf(level_str, U32_FMT, Game_LEVEL)
+    push dword [Game_LEVEL]
+    push U32_FMT
+    lea eax, dword [ebp+.level_str]
+    push eax
+    call sprintf
+    add esp, 12
+
+    ; score_len = strlen(score_str)
+    lea eax, dword [ebp+.score_str]
+    push eax
+    call strlen
+    add esp, 4
+    mov dword [ebp+.score_len], eax
+
+    ; lines_len = strlen(lines_str)
+    lea eax, dword [ebp+.lines_str]
+    push eax
+    call strlen
+    add esp, 4
+    mov dword [ebp+.lines_len], eax
+
+    ; level_len = strlen(level_str)
+    lea eax, dword [ebp+.level_str]
+    push eax
+    call strlen
+    add esp, 4
+    mov dword [ebp+.level_len], eax
+
+    .FONT_SCALE equ 2
+    .GLYPH_SIZE equ .FONT_SCALE * FONT_SIZE_TEXELS
+    .FONT_ADVANCE_SIZE equ .FONT_SCALE * FONT_ADVANCE_TEXELS
+    .MSG_SIZE equ 5 * .GLYPH_SIZE + 4 * .FONT_ADVANCE_SIZE
+    .NUMBER_SIZE equ (MAX_SCORE_STRING_SIZE - 3) * .GLYPH_SIZE + (MAX_SCORE_STRING_SIZE - 4) * .FONT_ADVANCE_SIZE
+    .BOX_MARGIN_TOP equ 10
+    .INFO_OFFSET equ 10
+    .BOX_PADDING equ 10
+    .BOX_HOFFSET equ CELL_SIZE_PIXELS
+    .BOX_HEIGHT equ .GLYPH_SIZE + 2 * .BOX_PADDING
+    .BOX_WIDTH equ .NUMBER_SIZE + 2 * .BOX_PADDING
+
+    ; score_size = score_len * GLYPH_SIZE + (score_len - 1) * FONT_ADVANCE_SIZE
+    mov dword [ebp+.score_size], 0
+    mov eax, .GLYPH_SIZE
+    mul dword [ebp+.score_len]
+    add dword [ebp+.score_size], eax
+    mov eax, .FONT_ADVANCE_SIZE
+    mov edx, dword [ebp+.score_len]
+    dec edx
+    mul edx
+    add dword [ebp+.score_size], eax
+
+    ; lines_size = lines_len * GLYPH_SIZE + (lines_len - 1) * FONT_ADVANCE_SIZE
+    mov dword [ebp+.lines_size], 0
+    mov eax, .GLYPH_SIZE
+    mul dword [ebp+.lines_len]
+    add dword [ebp+.lines_size], eax
+    mov eax, .FONT_ADVANCE_SIZE
+    mov edx, dword [ebp+.lines_len]
+    dec edx
+    mul edx
+    add dword [ebp+.lines_size], eax
+
+    ; level_size = level_len * GLYPH_SIZE + (level_len - 1) * FONT_ADVANCE_SIZE
+    mov dword [ebp+.level_size], 0
+    mov eax, .GLYPH_SIZE
+    mul dword [ebp+.level_len]
+    add dword [ebp+.level_size], eax
+    mov eax, .FONT_ADVANCE_SIZE
+    mov edx, dword [ebp+.level_len]
+    dec edx
+    mul edx
+    add dword [ebp+.level_size], eax
+
+    ; box_left = image.width / 2 - FIELD_WIDTH_PIXELS / 2 - BOX_HOFFSET - BOX_WIDTH
+    mov eax, dword [edi+ScreenImage.width]
+    shr eax, 1
+    sub eax, FIELD_WIDTH_PIXELS / 2 + .BOX_HOFFSET + .BOX_WIDTH
+    mov dword [ebp+.box_left], eax
+
+    ; box_bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2
+    mov eax, dword [edi+ScreenImage.height]
+    shr eax, 1
+    sub eax, FIELD_HEIGHT_PIXELS / 2
+    mov dword [ebp+.box_bottom], eax
+
+    ; image.fill_rect(box_left, box_bottom, BOX_WIDTH, BOX_HEIGHT, Game::CELL_COLORS[0])
+    push dword [Game_CELL_COLORS+0]
+    push .BOX_HEIGHT
+    push .BOX_WIDTH
+    push dword [ebp+.box_bottom]
+    push dword [ebp+.box_left]
+    push edi
+    call ScreenImage_fill_rect
+
+    ; image.draw_text(box_left + (BOX_WIDTH - lines_size) / 2,
+    ;                 box_bottom + BOX_PADDING,
+    ;                 FONT_SCALE, lines_str, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    lea eax, dword [ebp+.lines_str]
+    push eax
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_PADDING
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, .BOX_WIDTH / 2
+    mov edx, dword [ebp+.lines_size]
+    shr edx, 1
+    sub eax, edx
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; image.draw_text(box_left + (BOX_WIDTH - MSG_SIZE) / 2,
+    ;                 box_bottom + BOX_HEIGHT + BOX_MARGIN_TOP,
+    ;                 FONT_SCALE, LINES_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push LINES_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_HEIGHT + .BOX_MARGIN_TOP
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, (.BOX_WIDTH - .MSG_SIZE) / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; box_bottom += BOX_HEIGHT + 2 * BOX_MARGIN_TOP + GLYPH_SIZE + INFO_OFFSET
+    add dword [ebp+.box_bottom], .BOX_HEIGHT + 2 * .BOX_MARGIN_TOP + .GLYPH_SIZE + .INFO_OFFSET
+
+    ; image.fill_rect(box_left, box_bottom, BOX_WIDTH, BOX_HEIGHT, Game::CELL_COLORS[0])
+    push dword [Game_CELL_COLORS+0]
+    push .BOX_HEIGHT
+    push .BOX_WIDTH
+    push dword [ebp+.box_bottom]
+    push dword [ebp+.box_left]
+    push edi
+    call ScreenImage_fill_rect
+
+    ; image.draw_text(box_left + (BOX_WIDTH - score_size) / 2,
+    ;                 box_bottom + BOX_PADDING,
+    ;                 FONT_SCALE, score_str, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    lea eax, dword [ebp+.score_str]
+    push eax
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_PADDING
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, .BOX_WIDTH / 2
+    mov edx, dword [ebp+.score_size]
+    shr edx, 1
+    sub eax, edx
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; image.draw_text(box_left + (BOX_WIDTH - MSG_SIZE) / 2,
+    ;                 box_bottom + BOX_HEIGHT + BOX_MARGIN_TOP,
+    ;                 FONT_SCALE, SCORE_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push SCORE_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_HEIGHT + .BOX_MARGIN_TOP
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, (.BOX_WIDTH - .MSG_SIZE) / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; box_bottom += BOX_HEIGHT + 2 * BOX_MARGIN_TOP + GLYPH_SIZE + INFO_OFFSET
+    add dword [ebp+.box_bottom], .BOX_HEIGHT + 2 * .BOX_MARGIN_TOP + .GLYPH_SIZE + .INFO_OFFSET
+
+    ; image.fill_rect(box_left, box_bottom, BOX_WIDTH, BOX_HEIGHT, Game::CELL_COLORS[0])
+    push dword [Game_CELL_COLORS+0]
+    push .BOX_HEIGHT
+    push .BOX_WIDTH
+    push dword [ebp+.box_bottom]
+    push dword [ebp+.box_left]
+    push edi
+    call ScreenImage_fill_rect
+
+    ; image.draw_text(box_left + (BOX_WIDTH - level_size) / 2,
+    ;                 box_bottom + BOX_PADDING,
+    ;                 FONT_SCALE, level_str, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    lea eax, dword [ebp+.level_str]
+    push eax
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_PADDING
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, .BOX_WIDTH / 2
+    mov edx, dword [ebp+.level_size]
+    shr edx, 1
+    sub eax, edx
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; image.draw_text(box_left + (BOX_WIDTH - MSG_SIZE) / 2,
+    ;                 box_bottom + BOX_HEIGHT + BOX_MARGIN_TOP,
+    ;                 FONT_SCALE, LEVEL_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push LEVEL_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_HEIGHT + .BOX_MARGIN_TOP
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, (.BOX_WIDTH - .MSG_SIZE) / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    add esp, .stack_size
+
+    pop edi
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; fn Game::set_moving_direction(&mut self, direction: i32)
 Game_set_moving_direction:
     push ebp
@@ -1036,6 +1331,9 @@ Game_switch_piece:
             %endrep
         %assign relative_row relative_row+1
         %endrep
+
+        ; Game::SCORE += FIGURE_PLACE_POINTS
+        add dword [Game_SCORE], FIGURE_PLACE_POINTS
 
         ; self.saved_last_time = false
         mov byte [esi+Game.saved_last_time], 0
@@ -1668,8 +1966,10 @@ Game_clear_lines:
     push esi
     mov ebp, esp
 
-    .event              equ -LineClearEvent.sizeof-GameField.sizeof
-    .tmp_field          equ -GameField.sizeof
+
+    .event              equ -LineClearEvent.sizeof-GameField.sizeof-4
+    .tmp_field          equ -GameField.sizeof-4
+    .n_cleared          equ -4
 
     .argbase            equ 16
     .self               equ .argbase+0
@@ -1690,6 +1990,9 @@ Game_clear_lines:
 
     ; event = mem::zeroed()
     MEM_ZEROED Event, ebp+.event
+
+    ; n_cleared = 0
+    mov dword [ebp+.n_cleared], 0
 
     ; let (dest_index := edi) = 0
     xor edi, edi
@@ -1728,6 +2031,9 @@ Game_clear_lines:
             lea eax, dword [ebp+.event]
             push eax
             call EventDispatcher_throw
+
+            ; n_cleared += 1
+            inc dword [ebp+.n_cleared]
         ; }
         %$.no_line_clear:
         pop eax
@@ -1760,32 +2066,33 @@ Game_clear_lines:
     %assign row row+1
     %endrep
 
+    ; if n_cleared == 4 {
+    cmp dword [ebp+.n_cleared], 4
+    jne .n_cleared_is_not_4
+    
+        ; Game_SCORE += TETRIS_POINTS
+        add dword [Game_SCORE], TETRIS_POINTS
+
+    jmp .score_handled
+    ; } else if n_cleared > 0 {
+    .n_cleared_is_not_4:
+    cmp dword [ebp+.n_cleared], 0
+    je .score_handled
+
+        ; Game_SCORE += n_cleared * LINE_CLEAR_POINTS
+        mov eax, LINE_CLEAR_POINTS
+        mul dword [ebp+.n_cleared]
+        add dword [Game_SCORE], eax
+    ; }
+    .score_handled:
+
+    ; Game::N_LINES_CLEARED += n_cleared
+    mov eax, dword [ebp+.n_cleared]
+    add dword [Game_N_LINES_CLEARED], eax
+
     add esp, .stack_size
 
     pop esi
-    pop edi
-    pop ebp
-    ret .args_size
-
-
-; #[stdcall]
-; fn Score::new() -> #[mem(always)] Self
-Score_new:
-    push ebp
-    push edi
-    mov ebp, esp
-
-    .argbase                equ 12
-    .return                 equ .argbase+0
-
-    .args_size              equ .return-.argbase+4
-
-    ; return := edi
-    mov edi, dword [ebp+.return]
-
-    ; return.value = 0
-    mov dword [edi+Score.value], 0
-
     pop edi
     pop ebp
     ret .args_size

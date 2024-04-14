@@ -148,12 +148,10 @@ endstruc
 
 
 
-struc Score
-    .value                          resd 1
-    .sizeof                         equ ALIGNED($-.value)
-endstruc
-
-extern Score_new
+%define FIGURE_PLACE_POINTS 10
+%define LINE_CLEAR_POINTS 100
+%define TETRIS_POINTS 1000
+%define STATISTICS_TEXT_COLOR RGB(169, 177, 180)
 
 
 
