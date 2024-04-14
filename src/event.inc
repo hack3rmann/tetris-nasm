@@ -5,11 +5,8 @@
 
 
 
-%define EventType_LineClear             0
-%define EventType_GameOver              1
-%define EventType_FigureSwitch          2
-
-%define EventType_COUNT (1 + EventType_FigureSwitch)
+%define EventType_LineClear 0
+%define EventType_COUNT EventType_LineClear+1
 
 
 
@@ -30,21 +27,19 @@ struc Subscriber
     .env                    resb .env.sizeof
     ; fn(env: Env, &mut Event)
     .callback               resd 1
-    .sizeof                 equ ALIGNED($-.callback)
+    .sizeof                 equ ALIGNED($-.env)
 endstruc
 
 
 
+%assign EventDispatcher_N_SUBSCRIBERS EventType_COUNT
+
 struc EventDispatcher
     ; : Vec<Event>
-    .events                 resb Vec.sizeof
-
+    .events                         resb Vec.sizeof
     ; [Vec<Subscriber>; EventType_COUNT]
-    .subscribers.len        equ EventType_COUNT
-    .subscribers.elem_size  equ Vec.sizeof
-    .subscribers            resb .subscribers.len * .subscribers.elem_size
-
-    .sizeof                 equ ALIGNED($-.events)
+    .subscriber_lists               resb ALIGNED(Vec.sizeof * EventDispatcher_N_SUBSCRIBERS)
+    .sizeof                         equ ALIGNED($-.events)
 endstruc
 
 section .bss

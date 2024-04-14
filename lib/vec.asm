@@ -280,7 +280,8 @@ Vec_push:
 
         ; self.cap = 1
         mov dword [esi+Vec.cap], 1
-    
+
+    jmp .enough_capacity
     .self_cap_is_not_zero:
     ; } else if self.len == self.cap {
     mov eax, dword [esi+Vec.len]
@@ -304,7 +305,7 @@ Vec_push:
     ; }
     .enough_capacity:
 
-    ; self.ptr[self.len] = *value_ptr
+    ; memcpy(self.ptr + self.elem_size * self.len, value_ptr, self.elem_size)
     push dword [esi+Vec.elem_size]
     push dword [ebp+.value_ptr]
     mov eax, dword [esi+Vec.len]

@@ -1668,13 +1668,14 @@ Game_clear_lines:
     push esi
     mov ebp, esp
 
+    .event              equ -LineClearEvent.sizeof-GameField.sizeof
     .tmp_field          equ -GameField.sizeof
 
     .argbase            equ 16
     .self               equ .argbase+0
     
     .args_size          equ .self-.argbase+4
-    .stack_size         equ -.tmp_field
+    .stack_size         equ -.event
 
     ; self := esi
     mov esi, dword [ebp+.self]
@@ -1686,6 +1687,9 @@ Game_clear_lines:
 
     ; self.field = mem::zeroed()
     MEM_ZEROED GameField, esi+Game.field
+
+    ; event = mem::zeroed()
+    MEM_ZEROED Event, ebp+.event
 
     ; let (dest_index := edi) = 0
     xor edi, edi
@@ -1708,6 +1712,25 @@ Game_clear_lines:
         %assign col col+1
         %endrep
         %$.end_col:
+
+        ; if !skip_line {
+        push eax
+        test al, al
+        jnz %$.no_line_clear
+
+            ; event.type = EventType_LineClear
+            mov dword [ebp+.event+Event.type], EventType_LineClear
+
+            ; event.row = row
+            mov dword [ebp+.event+LineClearEvent.row], row
+
+            ; EventDispatcher::throw(&mut event)
+            lea eax, dword [ebp+.event]
+            push eax
+            call EventDispatcher_throw
+        ; }
+        %$.no_line_clear:
+        pop eax
 
         ; if skip_line { continue }
         test al, al

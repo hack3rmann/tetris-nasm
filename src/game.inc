@@ -3,6 +3,7 @@
 
 %include "lib/graphics.inc"
 %include "lib/mem.inc"
+%include "src/event.inc"
 
 
 
@@ -112,30 +113,38 @@ extern GameField_new, GameField_draw, GameField_draw_cell
 %define Game_PROJECTION_THICKNESS 1
 
 struc Game
-    .field                         resb GameField.sizeof
-    .cur_figure_type               resb ALIGNED(1)
-    .cur_figure.len                equ  16
-    .cur_figure                    resb ALIGNED(1 * .cur_figure.len)
-    .figure_row                    resd 1
-    .figure_col                    resd 1
-    .fall_speed                    resd 1
-    .lie_time                      resd 1
-    .speed_multiplier              resd 1
-    .last_fall_time                resd 1
-    .moving_direction              resd 1
-    .next_figure_types.len         equ Game_N_NEXT_FIGURES
-    .next_figure_types             resb ALIGNED(.next_figure_types.len)
-    .projected_figure.len          equ .cur_figure.len
-    .projected_figure              resb ALIGNED(1 * .projected_figure.len)
-    .projection_row                resd 1
-    .projection_col                resd 1
-    .saved_figure_type             resb ALIGNED(2)
-    .saved_last_time               equ .saved_figure_type+1
-    .sizeof                        equ ALIGNED($-.field)
+    .field                          resb GameField.sizeof
+    .cur_figure_type                resb ALIGNED(1)
+    .cur_figure.len                 equ  16
+    .cur_figure                     resb ALIGNED(1 * .cur_figure.len)
+    .figure_row                     resd 1
+    .figure_col                     resd 1
+    .fall_speed                     resd 1
+    .lie_time                       resd 1
+    .speed_multiplier               resd 1
+    .last_fall_time                 resd 1
+    .moving_direction               resd 1
+    .next_figure_types.len          equ Game_N_NEXT_FIGURES
+    .next_figure_types              resb ALIGNED(.next_figure_types.len)
+    .projected_figure.len           equ .cur_figure.len
+    .projected_figure               resb ALIGNED(1 * .projected_figure.len)
+    .projection_row                 resd 1
+    .projection_col                 resd 1
+    .saved_figure_type              resb ALIGNED(2)
+    .saved_last_time                equ .saved_figure_type+1
+    .sizeof                         equ ALIGNED($-.field)
 endstruc
 
 extern Game_new, Game_draw, Game_update, Game_set_moving_direction, Game_rotate
 extern Game_drop_piece, Game_save_load_piece, Game_try_swap_saved
+
+
+
+struc LineClearEvent
+    .inner                          resb Event.sizeof
+    .row                            equ .inner+Event.data+0
+    .sizeof                         equ ALIGNED($-.inner)
+endstruc
 
 
 
