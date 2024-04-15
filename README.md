@@ -29,3 +29,11 @@ This is classic game named 'Tetris' written in plain old pure assembly (NASM).
 2. Configure `SASM_PATH` variable in `Makefile` in the project root directory.
 3. Run `make build` (or `make run` to run game on success build) in the project root directory.
 4. If build succeeds You can find the executable in `target/` directory from the project root directory.
+
+## How to play
+
+- `A` and `D` to move figure left or right
+- `S` to increase figure falling speed
+- `R` to rotate figure
+- `Q` to hold figure
+- `Space` to drop figure
