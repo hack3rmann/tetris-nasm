@@ -22,6 +22,8 @@ section .rodata align 4
     SCORE_STR           db "Score", 0
     LINES_STR           db "Lines", 0
     LEVEL_STR           db "Level", 0
+    HOLD_STR            db "Hold", 0
+    NEXT_STR            db "Next", 0
 
 section .text
 
@@ -644,6 +646,13 @@ Game_draw_next_pieces:
     ; image := edi
     mov edi, dword [ebp+.image]
 
+    .FONT_SCALE equ 2
+    .GLYPH_SIZE equ .FONT_SCALE * FONT_SIZE_TEXELS
+    .FONT_ADVANCE_SIZE equ .FONT_SCALE * FONT_ADVANCE_TEXELS
+    .LABEL_HEIGHT equ CELL_SIZE_PIXELS
+    .LABEL_WIDTH equ 4 * .GLYPH_SIZE + 3 * .FONT_ADVANCE_SIZE
+    .LABEL_MARGIN equ (.LABEL_HEIGHT - .GLYPH_SIZE) / 2
+
     %assign i 0
     %rep Game.next_figure_types.len
         ; left = image.width / 2 + FIELD_WIDTH_PIXELS / 2 + CELL_SIZE_PIXELS
@@ -652,10 +661,10 @@ Game_draw_next_pieces:
         add eax, FIELD_WIDTH_PIXELS / 2 + CELL_SIZE_PIXELS
         mov dword [ebp+.left], eax
 
-        ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + 6 * CELL_SIZE_PIXELS + i * 5 * CELL_SIZE_PIXELS
+        ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + 6 * CELL_SIZE_PIXELS + i * 5 * CELL_SIZE_PIXELS - .LABEL_HEIGHT
         mov eax, dword [edi+ScreenImage.height]
         shr eax, 1
-        sub eax, FIELD_HEIGHT_PIXELS / 2 - 6 * CELL_SIZE_PIXELS - i * 5 * CELL_SIZE_PIXELS
+        sub eax, FIELD_HEIGHT_PIXELS / 2 - 6 * CELL_SIZE_PIXELS - i * 5 * CELL_SIZE_PIXELS + .LABEL_HEIGHT
         mov dword [ebp+.bottom], eax
 
         ; image.fill_rect(left,
@@ -726,6 +735,21 @@ Game_draw_next_pieces:
     %assign i i+1
     %endrep
 
+    ; image.draw_text(left + 2 * CELL_SIZE_PIXELS - LABEL_WIDTH / 2,
+    ;                 bottom + 4 * CELL_SIZE_PIXELS + LABEL_MARGIN,
+    ;                 FONT_SCALE, NEXT_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push NEXT_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.bottom]
+    add eax, 4 * CELL_SIZE_PIXELS + .LABEL_MARGIN
+    push eax
+    mov eax, dword [ebp+.left]
+    add eax, 2 * CELL_SIZE_PIXELS - .LABEL_WIDTH / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
     add esp, .stack_size
 
     pop edi
@@ -761,6 +785,13 @@ Game_draw_saved_piece:
     ; image := edi
     mov edi, dword [ebp+.image]
 
+    .FONT_SCALE equ 2
+    .GLYPH_SIZE equ .FONT_SCALE * FONT_SIZE_TEXELS
+    .FONT_ADVANCE_SIZE equ .FONT_SCALE * FONT_ADVANCE_TEXELS
+    .LABEL_HEIGHT equ CELL_SIZE_PIXELS
+    .LABEL_WIDTH equ 4 * .GLYPH_SIZE + 3 * .FONT_ADVANCE_SIZE
+    .LABEL_MARGIN equ (.LABEL_HEIGHT - .GLYPH_SIZE) / 2
+
     ; left = image.width / 2 - FIELD_WIDTH_PIXELS / 2 - 5 * CELL_SIZE_PIXELS
     mov eax, dword [edi+ScreenImage.width]
     shr eax, 1
@@ -768,10 +799,10 @@ Game_draw_saved_piece:
     sub eax, 5 * CELL_SIZE_PIXELS
     mov dword [ebp+.left], eax
 
-    ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + (GameField_HEIGHT - 4) * CELL_SIZE_PIXELS
+    ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + (GameField_HEIGHT - 4) * CELL_SIZE_PIXELS - LABEL_HEIGHT
     mov eax, dword [edi+ScreenImage.height]
     shr eax, 1
-    sub eax, FIELD_HEIGHT_PIXELS / 2
+    sub eax, FIELD_HEIGHT_PIXELS / 2 + .LABEL_HEIGHT
     add eax, (GameField_HEIGHT - 4) * CELL_SIZE_PIXELS
     mov dword [ebp+.bottom], eax
 
@@ -840,6 +871,21 @@ Game_draw_saved_piece:
         %endrep
     %assign row row+1
     %endrep
+
+    ; image.draw_text(left + 2 * CELL_SIZE_PIXELS - LABEL_WIDTH / 2,
+    ;                 bottom + 4 * CELL_SIZE_PIXELS + LABEL_MARGIN,
+    ;                 FONT_SCALE, HOLD_STR, STATISTICTS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push HOLD_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.bottom]
+    add eax, 4 * CELL_SIZE_PIXELS + .LABEL_MARGIN
+    push eax
+    mov eax, dword [ebp+.left]
+    add eax, 2 * CELL_SIZE_PIXELS - .LABEL_WIDTH / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
 
     add esp, .stack_size
 
@@ -1517,13 +1563,13 @@ Game_handle_collisions:
             cmp byte [esi+Game.cur_figure+(relative_row*4+relative_col)], 0
             je %$.continue
 
-            ; if self.figure_row + relative_row + voffset >= GameField_HEIGHT { return CollisionType::BottomBoundary }
+            ; if self.figure_row + relative_row + voffset < 0 { return CollisionType::BottomBoundary }
             mov eax, dword [esi+Game.figure_row]
             add eax, relative_row
             add eax, dword [ebp+.voffset]
-            cmp eax, GameField_HEIGHT
+            cmp eax, 0
             mov al, CollisionType_BottomBoundary
-            jae .exit
+            jl .exit
 
             ; if self.figure_col + hoffset + relative_col >= GameField_WIDTH { return CollisionType::SideBoundary }
             mov eax, dword [esi+Game.figure_col]
@@ -2089,6 +2135,18 @@ Game_clear_lines:
     ; Game::N_LINES_CLEARED += n_cleared
     mov eax, dword [ebp+.n_cleared]
     add dword [Game_N_LINES_CLEARED], eax
+
+    ; Game::LEVEL = Game::N_LINES_CLEARED / 10 + 1
+    mov eax, dword [Game_N_LINES_CLEARED]
+    xor edx, edx
+    mov ecx, 10
+    div ecx
+    inc eax
+    mov dword [Game_LEVEL], eax
+
+    ; self.fall_speed = Game::LEVEL as f32
+    fild dword [Game_LEVEL]
+    fstp dword [esi+Game.fall_speed]
 
     add esp, .stack_size
 

@@ -161,7 +161,13 @@ GLYPHS:
            0, 1, 1, 0, 0, 1, 1, \
            0, 0, 1, 1, 1, 1, 0, FONT_ALIGN_BYTES
 
-    .D  db UNIMPLEMENTED_GLYPH
+    .D  db 1, 1, 1, 1, 1, 0, 0, \
+           1, 1, 0, 0, 1, 1, 0, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 1, 1, 0, \
+           1, 1, 1, 1, 1, 0, 0, FONT_ALIGN_BYTES
     
     .E  db 1, 1, 1, 1, 1, 1, 1, \
            1, 1, 0, 0, 0, 0, 0, \
@@ -173,7 +179,14 @@ GLYPHS:
 
     .F  db UNIMPLEMENTED_GLYPH
     .G  db UNIMPLEMENTED_GLYPH
-    .H  db UNIMPLEMENTED_GLYPH
+
+    .H  db 1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 1, 1, 1, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, FONT_ALIGN_BYTES
 
     .I  db 1, 1, 1, 1, 1, 1, 0, \
            0, 0, 1, 1, 0, 0, 0, \
@@ -231,7 +244,14 @@ GLYPHS:
            1, 1, 0, 0, 0, 1, 1, \
            0, 1, 1, 1, 1, 1, 0, FONT_ALIGN_BYTES
 
-    .T  db UNIMPLEMENTED_GLYPH
+    .T  db 1, 1, 1, 1, 1, 1, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, FONT_ALIGN_BYTES
+
     .U  db UNIMPLEMENTED_GLYPH
 
     .V  db 1, 1, 0, 0, 0, 1, 1, \
@@ -243,7 +263,15 @@ GLYPHS:
            0, 0, 0, 1, 0, 0, 0, FONT_ALIGN_BYTES
 
     .W  db UNIMPLEMENTED_GLYPH
-    .X  db UNIMPLEMENTED_GLYPH
+
+    .X  db 1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 1, 0, 1, 1, 1, \
+           0, 1, 1, 1, 1, 1, 0, \
+           0, 0, 1, 1, 1, 0, 0, \
+           0, 1, 1, 1, 1, 1, 0, \
+           1, 1, 1, 0, 1, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, FONT_ALIGN_BYTES
+
     .Y  db UNIMPLEMENTED_GLYPH
     .Z  db UNIMPLEMENTED_GLYPH
 
@@ -277,7 +305,13 @@ GLYPHS:
            0, 1, 1, 0, 0, 1, 1, \
            0, 0, 1, 1, 1, 1, 0, FONT_ALIGN_BYTES
 
-    .d  db UNIMPLEMENTED_GLYPH
+    .d  db 1, 1, 1, 1, 1, 0, 0, \
+           1, 1, 0, 0, 1, 1, 0, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 1, 1, 0, \
+           1, 1, 1, 1, 1, 0, 0, FONT_ALIGN_BYTES
     
     .e  db 1, 1, 1, 1, 1, 1, 1, \
            1, 1, 0, 0, 0, 0, 0, \
@@ -285,11 +319,18 @@ GLYPHS:
            1, 1, 1, 1, 1, 0, 0, \
            1, 1, 0, 0, 0, 0, 0, \
            1, 1, 0, 0, 0, 0, 0, \
-           1, 1, 1, 1, 1, 1, 0, FONT_ALIGN_BYTES
+           1, 1, 1, 1, 1, 1, 1, FONT_ALIGN_BYTES
 
     .f  db UNIMPLEMENTED_GLYPH
     .g  db UNIMPLEMENTED_GLYPH
-    .h  db UNIMPLEMENTED_GLYPH
+
+    .h  db 1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 1, 1, 1, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, FONT_ALIGN_BYTES
 
     .i  db 1, 1, 1, 1, 1, 1, 0, \
            0, 0, 1, 1, 0, 0, 0, \
@@ -347,7 +388,14 @@ GLYPHS:
            1, 1, 0, 0, 0, 1, 1, \
            0, 1, 1, 1, 1, 1, 0, FONT_ALIGN_BYTES
 
-    .t  db UNIMPLEMENTED_GLYPH
+    .t  db 1, 1, 1, 1, 1, 1, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, \
+           0, 0, 1, 1, 0, 0, 0, FONT_ALIGN_BYTES
+
     .u  db UNIMPLEMENTED_GLYPH
 
     .v  db 1, 1, 0, 0, 0, 1, 1, \
@@ -359,7 +407,15 @@ GLYPHS:
            0, 0, 0, 1, 0, 0, 0, FONT_ALIGN_BYTES
 
     .w  db UNIMPLEMENTED_GLYPH
-    .x  db UNIMPLEMENTED_GLYPH
+
+    .x  db 1, 1, 0, 0, 0, 1, 1, \
+           1, 1, 1, 0, 1, 1, 1, \
+           0, 1, 1, 1, 1, 1, 0, \
+           0, 0, 1, 1, 1, 0, 0, \
+           0, 1, 1, 1, 1, 1, 0, \
+           1, 1, 1, 0, 1, 1, 1, \
+           1, 1, 0, 0, 0, 1, 1, FONT_ALIGN_BYTES
+
     .y  db UNIMPLEMENTED_GLYPH
     .z  db UNIMPLEMENTED_GLYPH
 
