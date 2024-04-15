@@ -4,8 +4,7 @@
 %include "src/game.inc"
 %include "lib/float_consts.inc"
 %include "lib/debug/print.inc"
-
-extern printf
+%include "src/event.inc"
 
 
 section .bss align 4
@@ -34,6 +33,9 @@ section .text
 main:
     push ebp
     mov ebp, esp
+
+    ; EventDispatcher::init()
+    call EventDispatcher_init
 
     ; window = Window::new(window_name, 800, 600)
     push 600
@@ -159,6 +161,32 @@ main:
         ; }
         .R_is_not_pressed:
 
+        ; if keyboard.just_pressed(VK_SPACE) {
+        push VK_SPACE
+        push keyboard
+        call Keyboard_just_pressed
+        test al, al
+        jz .VS_SPACE_is_not_pressed
+        
+            ; game.drop_piece()
+            push game
+            call Game_drop_piece
+        ; }
+        .VS_SPACE_is_not_pressed:
+
+        ; if keyboard.just_pressed('Q') {
+        push "Q"
+        push keyboard
+        call Keyboard_just_pressed
+        test al, al
+        jz .Q_is_not_pressed
+
+            ; game.try_swap_saved()
+            push game
+            call Game_try_swap_saved
+        ; }
+        .Q_is_not_pressed:
+
         ; game.speed_multiplier = speed_multiplier
         fld dword [speed_multiplier]
         fstp dword [game+Game.speed_multiplier]
@@ -185,6 +213,9 @@ main:
         ; keyboard.update()
         push keyboard
         call Keyboard_update
+
+        ; EventDispatcher::dispatch_all()
+        call EventDispatcher_dispatch_all
 
         jmp .msg_loop_start
     ; }

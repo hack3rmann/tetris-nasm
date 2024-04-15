@@ -68,7 +68,6 @@ extern LoadImageA@24, GetTickCount@0
 %define WM_KEYUP            0x0101
 %define WM_SIZE             0x0005
 
-
 %define WS_OVERLAPPED       0x00000000
 %define WS_POPUP            0x80000000
 %define WS_CHILD            0x40000000
@@ -116,6 +115,8 @@ extern LoadImageA@24, GetTickCount@0
 %define IMAGE_ICON          1
 
 %define LR_LOADFROMFILE     0x10
+
+%define VK_SPACE            0x20
 
 
 

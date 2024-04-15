@@ -2,8 +2,9 @@
 %include "lib/graphics.inc"
 %include "lib/mem.inc"
 %include "lib/debug/print.inc"
+%include "lib/fonts.inc"
 
-extern calloc, realloc, free
+extern calloc, realloc, free, printf
 
 
 
@@ -314,6 +315,76 @@ ScreenImage_fill_rect:
 
 
 ; #[stdcall]
+; fn ScreenImage::fill_box(
+;     &mut self, left: u32, bottom: u32,
+;     width: u32, height: u32, thickness: u32, value: u32)
+ScreenImage_fill_box:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase                equ 12
+    .self                   equ .argbase+0
+    .left                   equ .argbase+4
+    .bottom                 equ .argbase+8
+    .width                  equ .argbase+12
+    .height                 equ .argbase+16
+    .thickness              equ .argbase+20
+    .value                  equ .argbase+24
+
+    .args_size              equ .value-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; self.fill_rect(left, bottom, thickness, height, value)
+    push dword [ebp+.value]
+    push dword [ebp+.height]
+    push dword [ebp+.thickness]
+    push dword [ebp+.bottom]
+    push dword [ebp+.left]
+    push esi
+    call ScreenImage_fill_rect
+
+    ; self.fill_rect(left, bottom, width, thickness, value)
+    push dword [ebp+.value]
+    push dword [ebp+.thickness]
+    push dword [ebp+.width]
+    push dword [ebp+.bottom]
+    push dword [ebp+.left]
+    push esi
+    call ScreenImage_fill_rect
+
+    ; self.fill_rect(left + width - thickness, bottom, thickness, height, value)
+    push dword [ebp+.value]
+    push dword [ebp+.height]
+    push dword [ebp+.thickness]
+    push dword [ebp+.bottom]
+    mov eax, dword [ebp+.left]
+    add eax, dword [ebp+.width]
+    sub eax, dword [ebp+.thickness]
+    push eax
+    push esi
+    call ScreenImage_fill_rect
+
+    ; self.fill_rect(left, bottom + height - thickness, width, thickness, value)
+    push dword [ebp+.value]
+    push dword [ebp+.thickness]
+    push dword [ebp+.width]
+    mov eax, dword [ebp+.bottom]
+    add eax, dword [ebp+.height]
+    sub eax, dword [ebp+.thickness]
+    push eax
+    push dword [ebp+.left]
+    push esi
+    call ScreenImage_fill_rect
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; ScreenImage::fill(&mut self, value: u32)
 ScreenImage_fill:
     push ebp
@@ -368,6 +439,147 @@ ScreenImage_fill:
 
 .exit:
     pop edi
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; ScreenImage::draw_char(&mut self, left: u32, bottom: u32, scale: u32, char: u32, color: u32)
+ScreenImage_draw_char:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .glyph                  equ -FONT_N_ALIGN_BYTES
+
+    .argbase                equ 12
+    .self                   equ .argbase+0
+    .left                   equ .argbase+4
+    .bottom                 equ .argbase+8
+    .scale                  equ .argbase+12
+    .char                   equ .argbase+16
+    .color                  equ .argbase+20
+
+    .args_size              equ .color-.argbase+4
+    .stack_size             equ -.glyph
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; let (glyph_index := ecx) = FONT_N_ALIGN_BYTES * char
+    mov eax, FONT_N_ALIGN_BYTES
+    mul dword [ebp+.char]
+
+    ; glyph = GLYPHS[glyph_index]
+    MEM_COPY ebp+.glyph, GLYPHS+eax, FONT_N_ALIGN_BYTES
+
+    %assign relative_row 0
+    %rep FONT_SIZE_TEXELS
+        %assign relative_col 0
+        %rep FONT_SIZE_TEXELS
+        %push
+
+            ; if 0 == glyph[FONT_SIZE_TEXELS - relative_row - 1, relative_col] { continue }
+            cmp byte [ebp+.glyph+(FONT_SIZE_TEXELS*(FONT_SIZE_TEXELS - relative_row - 1)+relative_col)], 0
+            je %$.continue
+
+            ; self.fill_rect(left + scale*relative_col, bottom + scale*relative_row, scale, scale, color)
+            push dword [ebp+.color]
+            push dword [ebp+.scale]
+            push dword [ebp+.scale]
+            mov eax, relative_row
+            mul dword [ebp+.scale]
+            add eax, dword [ebp+.bottom]
+            push eax
+            mov eax, relative_col
+            mul dword [ebp+.scale]
+            add eax, dword [ebp+.left]
+            push eax
+            push esi
+            call ScreenImage_fill_rect
+
+            %$.continue:
+        %pop
+        %assign relative_col relative_col+1
+        %endrep
+    %assign relative_row relative_row+1
+    %endrep
+
+    add esp, .stack_size
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; ScreemImage::draw_text(&mut self, left: u32, bottom: u32,
+;                        scale: u32, text: *const u8, color: u32)
+ScreenImage_draw_text:
+    push ebp
+    push esi
+    push ebx
+    mov ebp, esp
+
+    .offset                 equ -4
+
+    .argbase                equ 16
+    .self                   equ .argbase+0
+    .left                   equ .argbase+4
+    .bottom                 equ .argbase+8
+    .scale                  equ .argbase+12
+    .text                   equ .argbase+16
+    .color                  equ .argbase+20
+
+    .args_size              equ .color-.argbase+4
+    .stack_size             equ -.offset
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; let (cur_char_ptr := ebx) = text
+    mov ebx, dword [ebp+.text]
+
+    ; offset = 0
+    mov dword [ebp+.offset], 0
+
+    ; while *cur_char_ptr != 0 {
+    .while_cur_char_start:
+    cmp byte [ebx], 0
+    je .while_cur_char_end
+
+        ; self.draw_char(left + offset, bottom, scale, *cur_char_ptr as u32, color)
+        push dword [ebp+.color]
+        movzx eax, byte [ebx]
+        push eax
+        push dword [ebp+.scale]
+        push dword [ebp+.bottom]
+        mov eax, dword [ebp+.left]
+        add eax, dword [ebp+.offset]
+        push eax
+        push esi
+        call ScreenImage_draw_char
+
+        ; offset += scale * (FONT_SIZE_TEXELS + FONT_ADVANCE_TEXELS)
+        mov eax, FONT_SIZE_TEXELS + FONT_ADVANCE_TEXELS
+        mul dword [ebp+.scale]
+        add dword [ebp+.offset], eax
+
+        ; cur_char_ptr += 1
+        inc ebx
+
+    jmp .while_cur_char_start
+    ; }
+    .while_cur_char_end:
+
+    add esp, .stack_size
+
+    pop ebx
     pop esi
     pop ebp
     ret .args_size

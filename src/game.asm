@@ -1,14 +1,29 @@
 %include "src/game.inc"
 %include "lib/mem.inc"
 %include "lib/numeric.inc"
+%include "lib/fonts.inc"
 %include "lib/debug/print.inc"
 
-extern memset, memcpy, rand, srand, time
+extern memset, memcpy, rand, srand, time, sprintf, strlen, printf
 
 
+
+section .data align 4
+    Game_N_I_SKIPS          dd 0
+    Game_SCORE              dd 0
+    Game_N_LINES_CLEARED    dd 0
+    Game_LEVEL              dd 1
+    MAX_SCORE_STRING_SIZE   equ 11
+    MAX_LINES_STRING_SIZE   equ 11
 
 section .rodata align 4
-    float_fmt db "%f", 10, 0
+    float_fmt           db "%f", 10, 0
+    U32_FMT             db "%u", 0
+    SCORE_STR           db "Score", 0
+    LINES_STR           db "Lines", 0
+    LEVEL_STR           db "Level", 0
+    HOLD_STR            db "Hold", 0
+    NEXT_STR            db "Next", 0
 
 section .text
 
@@ -198,6 +213,92 @@ GameField_draw_cell:
     ret .args_size
 
 
+; #[stdcall]
+; fn GameField::draw_empty_cell(image: &mut ScreenImage, row: u32, col: u32, thickness: u32, type: CellType)
+GameField_draw_empty_cell:
+    push ebp
+    push edi
+    mov ebp, esp
+
+    .cur_color          equ -12
+    .left               equ -8
+    .bottom             equ -4
+
+    .argbase            equ 12
+    .image              equ .argbase+0
+    .row                equ .argbase+4
+    .col                equ .argbase+8
+    .thickness          equ .argbase+12
+    .type               equ .argbase+16
+
+    .args_size          equ .type-.argbase+4
+    .stack_size         equ -.cur_color
+
+    sub esp, .stack_size
+
+    ; image := edi
+    mov edi, dword [ebp+.image]
+
+    ; if row >= GameField_HEIGHT { return }
+    cmp dword [ebp+.row], GameField_HEIGHT
+    jnb .exit
+
+    ; if col >= GameField_WIDTH { return }
+    cmp dword [ebp+.col], GameField_WIDTH
+    jnb .exit
+
+    ; cur_color = Game::CELL_COLORS[type]
+    mov eax, dword [ebp+.type]
+    mov eax, dword [Game_CELL_COLORS+4*eax]
+    mov dword [ebp+.cur_color], eax
+
+    ; left = (image.width - FIELD_WIDTH_PIXELS) / 2 
+    ;      + col * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+    mov eax, dword [edi+ScreenImage.width]
+    sub eax, FIELD_WIDTH_PIXELS
+    shr eax, 1
+    mov dword [ebp+.left], eax
+    mov edx, CELL_SIZE_PIXELS
+    mov eax, dword [ebp+.col]
+    mul edx
+    add eax, CELL_PADDING_PIXELS
+    add dword [ebp+.left], eax
+
+    ; bottom = (image.height - FIELD_HEIGHT_PIXELS) / 2 
+    ;      + row * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+    mov eax, dword [edi+ScreenImage.height]
+    sub eax, FIELD_HEIGHT_PIXELS
+    shr eax, 1
+    mov dword [ebp+.bottom], eax
+    mov edx, CELL_SIZE_PIXELS
+    mov eax, dword [ebp+.row]
+    mul edx
+    add eax, CELL_PADDING_PIXELS
+    add dword [ebp+.bottom], eax
+
+    ; image.fill_box(left, 
+    ;                 bottom,
+    ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+    ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+    ;                 thickness,
+    ;                 cur_color)
+    push dword [ebp+.cur_color]
+    push dword [ebp+.thickness]
+    push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+    push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+    push dword [ebp+.bottom]
+    push dword [ebp+.left]
+    push edi
+    call ScreenImage_fill_box
+
+.exit:
+    add esp, .stack_size
+
+    pop edi
+    pop ebp
+    ret .args_size
+
+
 
 ; [stdcall]
 ; fn Game::new() -> Self
@@ -231,15 +332,33 @@ Game_new:
     call Game_random_figure_type
     mov byte [edi+Game.cur_figure_type], al
 
-    ; return.cur_figure = Game::FIGURES[return.cur_figure_type]
-    shl eax, 4
-    MEM_COPY edi+Game.cur_figure, Game_FIGURES+eax, 16
+    ; return.saved_figure_type = 0
+    mov byte [edi+Game.saved_figure_type], 0
 
-    ; self.figure_row = Game_DEFAULT_FIGURE_ROW
+    ; return.saved_last_time = false
+    mov byte [edi+Game.saved_last_time], 0
+
+    ; return.cur_figure = Game::FIGURES[return.cur_figure_type]
+    mov edx, eax
+    shl edx, 4
+    MEM_COPY edi+Game.cur_figure, Game_FIGURES+edx, 16
+
+    ; return.projected_figure = Game::FIGURES[return.cur_figure_type]
+    mov edx, eax
+    shl edx, 4
+    MEM_COPY edi+Game.projected_figure, Game_FIGURES+edx, 16
+
+    ; return.figure_row = Game_DEFAULT_FIGURE_ROW
     mov dword [edi+Game.figure_row], Game_DEFAULT_FIGURE_ROW
 
-    ; self.figure_col = Game_DEFAULT_FIGURE_COL
+    ; return.figure_col = Game_DEFAULT_FIGURE_COL
     mov dword [edi+Game.figure_col], Game_DEFAULT_FIGURE_COL
+
+    ; return.projection_row = Game_DEFAULT_FIGURE_ROW
+    mov dword [edi+Game.projection_row], Game_DEFAULT_FIGURE_ROW
+
+    ; return.projection_col = Game_DEFAULT_FIGURE_COL
+    mov dword [edi+Game.projection_col], Game_DEFAULT_FIGURE_COL
 
     ; return.fall_speed = initial_fall_speed
     fld dword [Game_INITIAL_FALL_SPEED]
@@ -368,9 +487,29 @@ Game_random_figure_type:
         je .try_again
     ; }
 
+    ; if result != FigureType_I { Game::N_I_SKIPS += 1 }
+    cmp edx, FigureType_I
+    setne al
+    movzx eax, al
+    add dword [Game_N_I_SKIPS], eax
+
+    ; if N_I_SKIPS == 10 {
+    cmp dword [Game_N_I_SKIPS], 10
+    jne .N_I_SKIPS_is_10
+    
+        ; N_I_SKIPS = 0
+        mov dword [Game_N_I_SKIPS], 0
+
+        ; return FigureType_I
+        mov eax, FigureType_I
+        jmp .exit
+    ; }
+    .N_I_SKIPS_is_10:
+
     ; return result
     mov eax, edx
     
+.exit:
     pop ebp
     ret .args_size
 
@@ -429,6 +568,30 @@ Game_draw:
             ; }
             %$.figure_is_not_empty:
 
+            ; if self.projected_figure[relative_row * 4 + relative_col] != 0 {
+            cmp byte [esi+Game.projected_figure+relative_row*4+relative_col], 0
+            je %$.projection_is_not_empty
+
+                ; GameField::draw_empty_cell(image,
+                ;                 self.projection_row + relative_row,
+                ;                 self.projection_col + relative_col,
+                ;                 Game_PROJECTION_THICKNESS,
+                ;                 self.cur_figure_type as u32)
+                mov al, byte [esi+Game.cur_figure_type]
+                movzx eax, al
+                push eax
+                push Game_PROJECTION_THICKNESS
+                mov eax, dword [esi+Game.projection_col]
+                add eax, relative_col
+                push eax
+                mov eax, dword [esi+Game.projection_row]
+                add eax, relative_row
+                push eax
+                push edi
+                call GameField_draw_empty_cell
+            ; }
+            %$.projection_is_not_empty:
+
         %pop
         %assign relative_col relative_col+1
         %endrep
@@ -439,6 +602,16 @@ Game_draw:
     push edi
     push esi
     call Game_draw_next_pieces
+
+    ; self.draw_saved_piece(image)
+    push edi
+    push esi
+    call Game_draw_saved_piece
+
+    ; self.draw_score(image)
+    push edi
+    push esi
+    call Game_draw_score
 
     pop edi
     pop esi
@@ -473,6 +646,13 @@ Game_draw_next_pieces:
     ; image := edi
     mov edi, dword [ebp+.image]
 
+    .FONT_SCALE equ 2
+    .GLYPH_SIZE equ .FONT_SCALE * FONT_SIZE_TEXELS
+    .FONT_ADVANCE_SIZE equ .FONT_SCALE * FONT_ADVANCE_TEXELS
+    .LABEL_HEIGHT equ CELL_SIZE_PIXELS
+    .LABEL_WIDTH equ 4 * .GLYPH_SIZE + 3 * .FONT_ADVANCE_SIZE
+    .LABEL_MARGIN equ (.LABEL_HEIGHT - .GLYPH_SIZE) / 2
+
     %assign i 0
     %rep Game.next_figure_types.len
         ; left = image.width / 2 + FIELD_WIDTH_PIXELS / 2 + CELL_SIZE_PIXELS
@@ -481,10 +661,10 @@ Game_draw_next_pieces:
         add eax, FIELD_WIDTH_PIXELS / 2 + CELL_SIZE_PIXELS
         mov dword [ebp+.left], eax
 
-        ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + 6 * CELL_SIZE_PIXELS + i * 5 * CELL_SIZE_PIXELS
+        ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + 6 * CELL_SIZE_PIXELS + i * 5 * CELL_SIZE_PIXELS - .LABEL_HEIGHT
         mov eax, dword [edi+ScreenImage.height]
         shr eax, 1
-        sub eax, FIELD_HEIGHT_PIXELS / 2 - 6 * CELL_SIZE_PIXELS - i * 5 * CELL_SIZE_PIXELS
+        sub eax, FIELD_HEIGHT_PIXELS / 2 - 6 * CELL_SIZE_PIXELS - i * 5 * CELL_SIZE_PIXELS + .LABEL_HEIGHT
         mov dword [ebp+.bottom], eax
 
         ; image.fill_rect(left,
@@ -554,6 +734,438 @@ Game_draw_next_pieces:
         %endrep
     %assign i i+1
     %endrep
+
+    ; image.draw_text(left + 2 * CELL_SIZE_PIXELS - LABEL_WIDTH / 2,
+    ;                 bottom + 4 * CELL_SIZE_PIXELS + LABEL_MARGIN,
+    ;                 FONT_SCALE, NEXT_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push NEXT_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.bottom]
+    add eax, 4 * CELL_SIZE_PIXELS + .LABEL_MARGIN
+    push eax
+    mov eax, dword [ebp+.left]
+    add eax, 2 * CELL_SIZE_PIXELS - .LABEL_WIDTH / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    add esp, .stack_size
+
+    pop edi
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::draw_saved_piece(&self, image: &mut ScreenImage)
+Game_draw_saved_piece:
+    push ebp
+    push esi
+    push edi
+    mov ebp, esp
+
+    .color              equ -12
+    .bottom             equ -8
+    .left               equ -4
+
+    .argbase            equ 16
+    .self               equ .argbase+0
+    .image              equ .argbase+4
+
+    .args_size          equ .image-.argbase+4
+    .stack_size         equ -.color
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; image := edi
+    mov edi, dword [ebp+.image]
+
+    .FONT_SCALE equ 2
+    .GLYPH_SIZE equ .FONT_SCALE * FONT_SIZE_TEXELS
+    .FONT_ADVANCE_SIZE equ .FONT_SCALE * FONT_ADVANCE_TEXELS
+    .LABEL_HEIGHT equ CELL_SIZE_PIXELS
+    .LABEL_WIDTH equ 4 * .GLYPH_SIZE + 3 * .FONT_ADVANCE_SIZE
+    .LABEL_MARGIN equ (.LABEL_HEIGHT - .GLYPH_SIZE) / 2
+
+    ; left = image.width / 2 - FIELD_WIDTH_PIXELS / 2 - 5 * CELL_SIZE_PIXELS
+    mov eax, dword [edi+ScreenImage.width]
+    shr eax, 1
+    sub eax, FIELD_WIDTH_PIXELS / 2
+    sub eax, 5 * CELL_SIZE_PIXELS
+    mov dword [ebp+.left], eax
+
+    ; bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2 + (GameField_HEIGHT - 4) * CELL_SIZE_PIXELS - LABEL_HEIGHT
+    mov eax, dword [edi+ScreenImage.height]
+    shr eax, 1
+    sub eax, FIELD_HEIGHT_PIXELS / 2 + .LABEL_HEIGHT
+    add eax, (GameField_HEIGHT - 4) * CELL_SIZE_PIXELS
+    mov dword [ebp+.bottom], eax
+
+    ; image.fill_rect(left,
+    ;                 bottom,
+    ;                 4 * CELL_SIZE_PIXELS,
+    ;                 4 * CELL_SIZE_PIXELS,
+    ;                 Game_BACKGROUNG_COLOR)
+    push Game_BACKGROUND_COLOR
+    push 4 * CELL_SIZE_PIXELS
+    push 4 * CELL_SIZE_PIXELS
+    push dword [ebp+.bottom]
+    push dword [ebp+.left]
+    push edi
+    call ScreenImage_fill_rect
+
+    %assign row 0
+    %rep 4
+        %assign col 0
+        %rep 4
+        %push
+
+            ; let (piece_index := ecx) = self.saved_figure_type
+            mov cl, byte [esi+Game.saved_figure_type]
+            movzx ecx, cl
+
+            ; if 0 == Game::FIGURES[piece_index][row, col] {
+            mov edx, ecx
+            shl edx, 4
+            cmp byte [Game_FIGURES+edx+(row*4+col)], 0
+            jne %$.piece_not_empty
+
+                ; color = Game::CELL_COLORS[0]
+                mov eax, dword [Game_CELL_COLORS+0]
+                mov dword [ebp+.color], eax
+
+            jmp %$.piece_handle_end
+            ; } else {
+            %$.piece_not_empty:
+
+                ; color = Game::CELL_COLORS[piece_index]
+                mov eax, dword [Game_CELL_COLORS+4*ecx]
+                mov dword [ebp+.color], eax
+            ; }
+            %$.piece_handle_end:
+
+            ; image.fill_rect(left + col * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS,
+            ;                 bottom + row * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS,
+            ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+            ;                 CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS,
+            ;                 color)
+            push dword [ebp+.color]
+            push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+            push CELL_SIZE_PIXELS - 2 * CELL_PADDING_PIXELS
+            mov eax, dword [ebp+.bottom]
+            add eax, row * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+            push eax
+            mov eax, dword [ebp+.left]
+            add eax, col * CELL_SIZE_PIXELS + CELL_PADDING_PIXELS
+            push eax
+            push edi
+            call ScreenImage_fill_rect
+
+        %pop
+        %assign col col+1
+        %endrep
+    %assign row row+1
+    %endrep
+
+    ; image.draw_text(left + 2 * CELL_SIZE_PIXELS - LABEL_WIDTH / 2,
+    ;                 bottom + 4 * CELL_SIZE_PIXELS + LABEL_MARGIN,
+    ;                 FONT_SCALE, HOLD_STR, STATISTICTS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push HOLD_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.bottom]
+    add eax, 4 * CELL_SIZE_PIXELS + .LABEL_MARGIN
+    push eax
+    mov eax, dword [ebp+.left]
+    add eax, 2 * CELL_SIZE_PIXELS - .LABEL_WIDTH / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    add esp, .stack_size
+
+    pop edi
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::draw_score(&self, image: &mut ScreenImage)
+Game_draw_score:
+    push ebp
+    push esi
+    push edi
+    mov ebp, esp
+
+    .level_str              equ -ALIGNED(MAX_SCORE_STRING_SIZE)
+    .level_len              equ -4+.level_str
+    .level_size             equ -4+.level_len
+    .lines_size             equ -4+.level_size
+    .score_size             equ -4+.lines_size
+    .box_left               equ -4+.score_size
+    .box_bottom             equ -4+.box_left
+    .score_str              equ -ALIGNED(MAX_SCORE_STRING_SIZE)+.box_bottom
+    .score_len              equ -4+.score_str
+    .lines_str              equ -ALIGNED(MAX_SCORE_STRING_SIZE)+.score_len
+    .lines_len              equ -4+.lines_str
+
+    .argbase                equ 16
+    .self                   equ .argbase+0
+    .image                  equ .argbase+4
+    
+    .args_size              equ .image-.argbase+4
+    .stack_size             equ -.lines_len
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; image := edi
+    mov edi, dword [ebp+.image]
+
+    ; sprintf(score_str, U32_FMT, Game_SCORE)
+    push dword [Game_SCORE]
+    push U32_FMT
+    lea eax, dword [ebp+.score_str]
+    push eax
+    call sprintf
+    add esp, 12
+
+    ; sprintf(lines_str, U32_FMT, Game_N_LINES_CLEARED)
+    push dword [Game_N_LINES_CLEARED]
+    push U32_FMT
+    lea eax, dword [ebp+.lines_str]
+    push eax
+    call sprintf
+    add esp, 12
+
+    ; sprintf(level_str, U32_FMT, Game_LEVEL)
+    push dword [Game_LEVEL]
+    push U32_FMT
+    lea eax, dword [ebp+.level_str]
+    push eax
+    call sprintf
+    add esp, 12
+
+    ; score_len = strlen(score_str)
+    lea eax, dword [ebp+.score_str]
+    push eax
+    call strlen
+    add esp, 4
+    mov dword [ebp+.score_len], eax
+
+    ; lines_len = strlen(lines_str)
+    lea eax, dword [ebp+.lines_str]
+    push eax
+    call strlen
+    add esp, 4
+    mov dword [ebp+.lines_len], eax
+
+    ; level_len = strlen(level_str)
+    lea eax, dword [ebp+.level_str]
+    push eax
+    call strlen
+    add esp, 4
+    mov dword [ebp+.level_len], eax
+
+    .FONT_SCALE equ 2
+    .GLYPH_SIZE equ .FONT_SCALE * FONT_SIZE_TEXELS
+    .FONT_ADVANCE_SIZE equ .FONT_SCALE * FONT_ADVANCE_TEXELS
+    .MSG_SIZE equ 5 * .GLYPH_SIZE + 4 * .FONT_ADVANCE_SIZE
+    .NUMBER_SIZE equ (MAX_SCORE_STRING_SIZE - 3) * .GLYPH_SIZE + (MAX_SCORE_STRING_SIZE - 4) * .FONT_ADVANCE_SIZE
+    .BOX_MARGIN_TOP equ 10
+    .INFO_OFFSET equ 10
+    .BOX_PADDING equ 10
+    .BOX_HOFFSET equ CELL_SIZE_PIXELS
+    .BOX_HEIGHT equ .GLYPH_SIZE + 2 * .BOX_PADDING
+    .BOX_WIDTH equ .NUMBER_SIZE + 2 * .BOX_PADDING
+
+    ; score_size = score_len * GLYPH_SIZE + (score_len - 1) * FONT_ADVANCE_SIZE
+    mov dword [ebp+.score_size], 0
+    mov eax, .GLYPH_SIZE
+    mul dword [ebp+.score_len]
+    add dword [ebp+.score_size], eax
+    mov eax, .FONT_ADVANCE_SIZE
+    mov edx, dword [ebp+.score_len]
+    dec edx
+    mul edx
+    add dword [ebp+.score_size], eax
+
+    ; lines_size = lines_len * GLYPH_SIZE + (lines_len - 1) * FONT_ADVANCE_SIZE
+    mov dword [ebp+.lines_size], 0
+    mov eax, .GLYPH_SIZE
+    mul dword [ebp+.lines_len]
+    add dword [ebp+.lines_size], eax
+    mov eax, .FONT_ADVANCE_SIZE
+    mov edx, dword [ebp+.lines_len]
+    dec edx
+    mul edx
+    add dword [ebp+.lines_size], eax
+
+    ; level_size = level_len * GLYPH_SIZE + (level_len - 1) * FONT_ADVANCE_SIZE
+    mov dword [ebp+.level_size], 0
+    mov eax, .GLYPH_SIZE
+    mul dword [ebp+.level_len]
+    add dword [ebp+.level_size], eax
+    mov eax, .FONT_ADVANCE_SIZE
+    mov edx, dword [ebp+.level_len]
+    dec edx
+    mul edx
+    add dword [ebp+.level_size], eax
+
+    ; box_left = image.width / 2 - FIELD_WIDTH_PIXELS / 2 - BOX_HOFFSET - BOX_WIDTH
+    mov eax, dword [edi+ScreenImage.width]
+    shr eax, 1
+    sub eax, FIELD_WIDTH_PIXELS / 2 + .BOX_HOFFSET + .BOX_WIDTH
+    mov dword [ebp+.box_left], eax
+
+    ; box_bottom = image.height / 2 - FIELD_HEIGHT_PIXELS / 2
+    mov eax, dword [edi+ScreenImage.height]
+    shr eax, 1
+    sub eax, FIELD_HEIGHT_PIXELS / 2
+    mov dword [ebp+.box_bottom], eax
+
+    ; image.fill_rect(box_left, box_bottom, BOX_WIDTH, BOX_HEIGHT, Game::CELL_COLORS[0])
+    push dword [Game_CELL_COLORS+0]
+    push .BOX_HEIGHT
+    push .BOX_WIDTH
+    push dword [ebp+.box_bottom]
+    push dword [ebp+.box_left]
+    push edi
+    call ScreenImage_fill_rect
+
+    ; image.draw_text(box_left + (BOX_WIDTH - lines_size) / 2,
+    ;                 box_bottom + BOX_PADDING,
+    ;                 FONT_SCALE, lines_str, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    lea eax, dword [ebp+.lines_str]
+    push eax
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_PADDING
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, .BOX_WIDTH / 2
+    mov edx, dword [ebp+.lines_size]
+    shr edx, 1
+    sub eax, edx
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; image.draw_text(box_left + (BOX_WIDTH - MSG_SIZE) / 2,
+    ;                 box_bottom + BOX_HEIGHT + BOX_MARGIN_TOP,
+    ;                 FONT_SCALE, LINES_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push LINES_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_HEIGHT + .BOX_MARGIN_TOP
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, (.BOX_WIDTH - .MSG_SIZE) / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; box_bottom += BOX_HEIGHT + 2 * BOX_MARGIN_TOP + GLYPH_SIZE + INFO_OFFSET
+    add dword [ebp+.box_bottom], .BOX_HEIGHT + 2 * .BOX_MARGIN_TOP + .GLYPH_SIZE + .INFO_OFFSET
+
+    ; image.fill_rect(box_left, box_bottom, BOX_WIDTH, BOX_HEIGHT, Game::CELL_COLORS[0])
+    push dword [Game_CELL_COLORS+0]
+    push .BOX_HEIGHT
+    push .BOX_WIDTH
+    push dword [ebp+.box_bottom]
+    push dword [ebp+.box_left]
+    push edi
+    call ScreenImage_fill_rect
+
+    ; image.draw_text(box_left + (BOX_WIDTH - score_size) / 2,
+    ;                 box_bottom + BOX_PADDING,
+    ;                 FONT_SCALE, score_str, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    lea eax, dword [ebp+.score_str]
+    push eax
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_PADDING
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, .BOX_WIDTH / 2
+    mov edx, dword [ebp+.score_size]
+    shr edx, 1
+    sub eax, edx
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; image.draw_text(box_left + (BOX_WIDTH - MSG_SIZE) / 2,
+    ;                 box_bottom + BOX_HEIGHT + BOX_MARGIN_TOP,
+    ;                 FONT_SCALE, SCORE_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push SCORE_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_HEIGHT + .BOX_MARGIN_TOP
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, (.BOX_WIDTH - .MSG_SIZE) / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; box_bottom += BOX_HEIGHT + 2 * BOX_MARGIN_TOP + GLYPH_SIZE + INFO_OFFSET
+    add dword [ebp+.box_bottom], .BOX_HEIGHT + 2 * .BOX_MARGIN_TOP + .GLYPH_SIZE + .INFO_OFFSET
+
+    ; image.fill_rect(box_left, box_bottom, BOX_WIDTH, BOX_HEIGHT, Game::CELL_COLORS[0])
+    push dword [Game_CELL_COLORS+0]
+    push .BOX_HEIGHT
+    push .BOX_WIDTH
+    push dword [ebp+.box_bottom]
+    push dword [ebp+.box_left]
+    push edi
+    call ScreenImage_fill_rect
+
+    ; image.draw_text(box_left + (BOX_WIDTH - level_size) / 2,
+    ;                 box_bottom + BOX_PADDING,
+    ;                 FONT_SCALE, level_str, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    lea eax, dword [ebp+.level_str]
+    push eax
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_PADDING
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, .BOX_WIDTH / 2
+    mov edx, dword [ebp+.level_size]
+    shr edx, 1
+    sub eax, edx
+    push eax
+    push edi
+    call ScreenImage_draw_text
+
+    ; image.draw_text(box_left + (BOX_WIDTH - MSG_SIZE) / 2,
+    ;                 box_bottom + BOX_HEIGHT + BOX_MARGIN_TOP,
+    ;                 FONT_SCALE, LEVEL_STR, STATISTICS_TEXT_COLOR)
+    push STATISTICS_TEXT_COLOR
+    push LEVEL_STR
+    push .FONT_SCALE
+    mov eax, dword [ebp+.box_bottom]
+    add eax, .BOX_HEIGHT + .BOX_MARGIN_TOP
+    push eax
+    mov eax, dword [ebp+.box_left]
+    add eax, (.BOX_WIDTH - .MSG_SIZE) / 2
+    push eax
+    push edi
+    call ScreenImage_draw_text
 
     add esp, .stack_size
 
@@ -649,7 +1261,8 @@ Game_update:
         push eax
         call Game_next_figure
 
-        ; self.switch_piece(next_type)
+        ; self.switch_piece(next_type, do_write=true)
+        push 1
         movzx eax, al
         push eax
         push esi
@@ -698,6 +1311,10 @@ Game_update:
         add dword [esi+Game.figure_col], eax
     ; }
     .cannot_move_in_hoffset:
+
+    ; game.project_piece()
+    push esi
+    call Game_project_piece
     
     ; game.clear_lines()
     push esi
@@ -712,7 +1329,7 @@ Game_update:
 
 
 ; #[stdcall]
-; fn Game::switch_piece(&mut self, next_type: CellType)
+; fn Game::switch_piece(&mut self, next_type: CellType, do_write: bool)
 Game_switch_piece:
     push ebp
     push esi
@@ -721,54 +1338,79 @@ Game_switch_piece:
     .argbase            equ 12
     .self               equ .argbase+0
     .next_type          equ .argbase+4
+    .do_write           equ .argbase+8
 
-    .args_size          equ .next_type-.argbase+4
+    .args_size          equ .do_write-.argbase+4
 
     ; self := esi
     mov esi, dword [ebp+.self]
 
-    %assign relative_row 0
-    %rep 4
-        %assign relative_col 0
+    ; if do_write {
+    cmp dword [ebp+.do_write], 0
+    je .do_not_write
+
+        %assign relative_row 0
         %rep 4
-        %push
-            
-            ; if 0 == self.cur_figure[relative_row, relative_col] { continue }
-            cmp byte [esi+Game.cur_figure+relative_row*4+relative_col], 0
-            je %$.continue
+            %assign relative_col 0
+            %rep 4
+            %push
+                
+                ; if 0 == self.cur_figure[relative_row, relative_col] { continue }
+                cmp byte [esi+Game.cur_figure+relative_row*4+relative_col], 0
+                je %$.continue
 
-            ; self.field.cells[self.figure_row + relative_row,
-            ;                  self.figure_col + relative_col].type = self.cur_figure_type
-            mov eax, dword [esi+Game.figure_row]
-            add eax, relative_row
-            mov edx, GameField_WIDTH
-            mul edx
-            add eax, dword [esi+Game.figure_col]
-            add eax, relative_col
-            mov dl, byte [esi+Game.cur_figure_type]
-            movzx edx, dl
-            mov byte [esi+Game.field+GameField.cells+4*eax+Cell.type], dl
+                ; self.field.cells[self.figure_row + relative_row,
+                ;                  self.figure_col + relative_col].type = self.cur_figure_type
+                mov eax, dword [esi+Game.figure_row]
+                add eax, relative_row
+                mov edx, GameField_WIDTH
+                mul edx
+                add eax, dword [esi+Game.figure_col]
+                add eax, relative_col
+                mov dl, byte [esi+Game.cur_figure_type]
+                movzx edx, dl
+                mov byte [esi+Game.field+GameField.cells+4*eax+Cell.type], dl
 
-            %$.continue:
-        %pop
-        %assign relative_col relative_col+1
+                %$.continue:
+            %pop
+            %assign relative_col relative_col+1
+            %endrep
+        %assign relative_row relative_row+1
         %endrep
-    %assign relative_row relative_row+1
-    %endrep
+
+        ; Game::SCORE += FIGURE_PLACE_POINTS
+        add dword [Game_SCORE], FIGURE_PLACE_POINTS
+
+        ; self.saved_last_time = false
+        mov byte [esi+Game.saved_last_time], 0
+    ; }
+    .do_not_write:
 
     ; self.cur_figure_type = next_type
     mov eax, dword [ebp+.next_type]
     mov byte [esi+Game.cur_figure_type], al
 
     ; self.cur_figure = Self::FIGURES[next_type]
-    shl eax, 4
-    MEM_COPY esi+Game.cur_figure, Game_FIGURES+eax, 16
+    mov edx, eax
+    shl edx, 4
+    MEM_COPY esi+Game.cur_figure, Game_FIGURES+edx, 16
+
+    ; self.projected_figure = Self::FIGURES[next_type]
+    mov edx, eax
+    shl edx, 4
+    MEM_COPY esi+Game.projected_figure, Game_FIGURES+edx, 16
 
     ; self.figure_row = Game_DEFAULT_FIGURE_ROW
     mov dword [esi+Game.figure_row], Game_DEFAULT_FIGURE_ROW
 
     ; self.figure_col = Game_DEFAULT_FIGURE_COL
     mov dword [esi+Game.figure_col], Game_DEFAULT_FIGURE_COL
+
+    ; self.projection_row = Game_DEFAULT_FIGURE_ROW
+    mov dword [esi+Game.projection_row], Game_DEFAULT_FIGURE_ROW
+
+    ; self.projection_col = Game_DEFAULT_FIGURE_COL
+    mov dword [esi+Game.projection_col], Game_DEFAULT_FIGURE_COL
 
     ; self.last_fall_time = 0.0
     fldz
@@ -784,11 +1426,125 @@ Game_switch_piece:
 
 
 ; #[stdcall]
+; fn Game::project_piece(&mut self)
+Game_project_piece:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .row                equ -8
+    .col                equ -4
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+    .stack_size         equ -.row
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; self.projected_figure = self.cur_figure
+    MEM_COPY esi+Game.projected_figure, esi+Game.cur_figure, 1 * Game.cur_figure.len
+
+    ; row = self.figure_row
+    mov eax, dword [esi+Game.figure_row]
+    mov dword [ebp+.row], eax
+
+    ; col = self.figure_col
+    mov eax, dword [esi+Game.figure_col]
+    mov dword [ebp+.col], eax
+
+    ; while (self.handle_collisions(0, -1) == CollisionType::None) {
+    .while_no_collisions_start:
+    push -1
+    push 0
+    push esi
+    call Game_handle_collisions
+    cmp al, CollisionType_None
+    jne .while_no_collisions_end
+
+        ; self.figure_row -= 1
+        dec dword [esi+Game.figure_row]
+
+    jmp .while_no_collisions_start
+    ; }
+    .while_no_collisions_end:
+
+    ; self.projection_row = self.figure_row
+    mov eax, dword [esi+Game.figure_row]
+    mov dword [esi+Game.projection_row], eax
+
+    ; self.projection_col = self.figure_col
+    mov eax, dword [esi+Game.figure_col]
+    mov dword [esi+Game.projection_col], eax
+
+    ; self.figure_row = row
+    mov eax, dword [ebp+.row]
+    mov dword [esi+Game.figure_row], eax
+
+    ; self.figure_col = col
+    mov eax, dword [ebp+.col]
+    mov dword [esi+Game.figure_col], eax
+
+    add esp, .stack_size
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::drop_piece(&mut self)
+Game_drop_piece:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; self.figure_row = self.projection_row
+    mov eax, dword [esi+Game.projection_row]
+    mov dword [esi+Game.figure_row], eax
+
+    ; self.figure_col = self.projection_col
+    mov eax, dword [esi+Game.projection_col]
+    mov dword [esi+Game.figure_col], eax
+
+    ; let (next_type := al) = Self::next_figure(&mut self.next_figure_types)
+    lea eax, dword [esi+Game.next_figure_types]
+    push eax
+    call Game_next_figure
+
+    ; self.switch_piece(next_type, do_write=true)
+    push 1
+    movzx eax, al
+    push eax
+    push esi
+    call Game_switch_piece
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
 ; fn Game::handle_collisions(&mut self, hoffset: i32, voffset: i32) -> CollisionType
 Game_handle_collisions:
     push ebp
     push esi
     mov ebp, esp
+
+    .row                equ -4
+    .col                equ -4+.row
 
     .argbase            equ 12
     .self               equ .argbase+0
@@ -796,6 +1552,9 @@ Game_handle_collisions:
     .voffset            equ .argbase+8
 
     .args_size          equ .voffset-.argbase+4
+    .stack_size         equ -.col
+
+    sub esp, .stack_size
 
     ; self := esi
     mov esi, dword [ebp+.self]
@@ -810,33 +1569,37 @@ Game_handle_collisions:
             cmp byte [esi+Game.cur_figure+(relative_row*4+relative_col)], 0
             je %$.continue
 
-            ; if self.figure_row + relative_row + voffset >= GameField_HEIGHT { return CollisionType::BottomBoundary }
+            ; row = self.figure_row + relative_row + voffset
             mov eax, dword [esi+Game.figure_row]
-            add eax, relative_row
             add eax, dword [ebp+.voffset]
-            cmp eax, GameField_HEIGHT
-            mov al, CollisionType_BottomBoundary
-            jae .exit
+            add eax, relative_row
+            mov dword [ebp+.row], eax
 
-            ; if self.figure_col + hoffset + relative_col >= GameField_WIDTH { return CollisionType::SideBoundary }
+            ; col = self.figure_col + hoffset + relative_col
             mov eax, dword [esi+Game.figure_col]
-            add eax, relative_col
             add eax, dword [ebp+.hoffset]
-            cmp eax, GameField_WIDTH
+            add eax, relative_col
+            mov dword [ebp+.col], eax
+
+            ; if row < 0 { return CollisionType::BottomBoundary }
+            cmp dword [ebp+.row], 0
+            mov al, CollisionType_BottomBoundary
+            jl .exit
+
+            ; if row >= GameField_HEIGHT { continue }
+            cmp dword [ebp+.row], GameField_HEIGHT
+            jae %$.continue
+
+            ; if col >= GameField_WIDTH { return CollisionType::SideBoundary }
+            cmp dword [ebp+.col], GameField_WIDTH
             mov al, CollisionType_SideBoundary
             jae .exit
 
-            ; if CellType_Empty != self.field.cells[self.figure_row + relative_row + voffset,
-            ;                                       self.figure_col + hoffset + relative_col].type
+            ; if CellType_Empty != self.field.cells[row, col].type
             ; { return CollisionType_GamePiece }
-            mov eax, dword [esi+Game.figure_row]
-            add eax, relative_row
-            add eax, dword [ebp+.voffset]
-            mov edx, GameField_WIDTH
-            mul edx
-            add eax, dword [esi+Game.figure_col]
-            add eax, relative_col
-            add eax, dword [ebp+.hoffset]
+            mov eax, GameField_WIDTH
+            mul dword [ebp+.row]
+            add eax, dword [ebp+.col]
             cmp byte [esi+Game.field+GameField.cells+Cell.sizeof*eax+Cell.type], CellType_Empty
             mov al, CollisionType_GamePiece
             jne .exit
@@ -852,6 +1615,8 @@ Game_handle_collisions:
     mov al, CollisionType_None
 
 .exit:
+    add esp, .stack_size
+
     pop esi
     pop ebp
     ret .args_size
@@ -974,6 +1739,107 @@ Game_rotate:
     ; }
     .kick_success:
 
+    add esp, .stack_size
+
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::try_swap_saved(&mut self) -> success: bool
+Game_try_swap_saved:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+    
+    .args_size          equ .self-.argbase+4
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; if self.saved_last_time { return false }
+    xor al, al
+    cmp byte [esi+Game.saved_last_time], 0
+    jne .exit
+    
+    ; self.save_load_piece()
+    push esi
+    call Game_save_load_piece
+
+    ; return true
+    mov al, 1
+
+.exit:
+    pop esi
+    pop ebp
+    ret .args_size
+
+
+; #[stdcall]
+; Game::save_load_piece(&mut self)
+Game_save_load_piece:
+    push ebp
+    push esi
+    mov ebp, esp
+
+    .next_type          equ -4
+
+    .argbase            equ 12
+    .self               equ .argbase+0
+
+    .args_size          equ .self-.argbase+4
+    .stack_size         equ -.next_type
+
+    sub esp, .stack_size
+
+    ; self := esi
+    mov esi, dword [ebp+.self]
+
+    ; if self.saved_figure_type == 0 {
+    cmp byte [esi+Game.saved_figure_type], 0
+    jne .saved_figure_type_is_not_zero
+
+        ; next_type = Self::next_figure(&mut self.next_figure_types)
+        lea eax, dword [esi+Game.next_figure_types]
+        push eax
+        call Game_next_figure
+        movzx eax, al
+        mov dword [ebp+.next_type], eax
+    
+        ; self.saved_figure_type = self.cur_figure_type
+        mov al, byte [esi+Game.cur_figure_type]
+        mov byte [esi+Game.saved_figure_type], al
+
+        jmp .next_type_handle_exit
+    ; } else {
+    .saved_figure_type_is_not_zero:
+
+        ; swap(&mut self.cur_figure_type, &mut self.saved_figure_type)
+        mov al, byte [esi+Game.cur_figure_type]
+        xchg al, byte [esi+Game.saved_figure_type]
+        mov byte [esi+Game.cur_figure_type], al
+
+        ; next_type = self.cur_figure_type
+        mov al, byte [esi+Game.cur_figure_type]
+        movzx eax, al
+        mov dword [ebp+.next_type], eax
+    ; }
+    .next_type_handle_exit:
+
+    ; self.saved_last_time = true
+    mov byte [esi+Game.saved_last_time], 1
+
+    ; self.switch_piece(next_type, false)
+    push 0
+    push dword [ebp+.next_type]
+    push esi
+    call Game_switch_piece
+
+.exit:
     add esp, .stack_size
 
     pop esi
@@ -1158,13 +2024,16 @@ Game_clear_lines:
     push esi
     mov ebp, esp
 
-    .tmp_field          equ -GameField.sizeof
+
+    .event              equ -LineClearEvent.sizeof-GameField.sizeof-4
+    .tmp_field          equ -GameField.sizeof-4
+    .n_cleared          equ -4
 
     .argbase            equ 16
     .self               equ .argbase+0
     
     .args_size          equ .self-.argbase+4
-    .stack_size         equ -.tmp_field
+    .stack_size         equ -.event
 
     ; self := esi
     mov esi, dword [ebp+.self]
@@ -1176,6 +2045,12 @@ Game_clear_lines:
 
     ; self.field = mem::zeroed()
     MEM_ZEROED GameField, esi+Game.field
+
+    ; event = mem::zeroed()
+    MEM_ZEROED Event, ebp+.event
+
+    ; n_cleared = 0
+    mov dword [ebp+.n_cleared], 0
 
     ; let (dest_index := edi) = 0
     xor edi, edi
@@ -1198,6 +2073,28 @@ Game_clear_lines:
         %assign col col+1
         %endrep
         %$.end_col:
+
+        ; if !skip_line {
+        push eax
+        test al, al
+        jnz %$.no_line_clear
+
+            ; event.type = EventType_LineClear
+            mov dword [ebp+.event+Event.type], EventType_LineClear
+
+            ; event.row = row
+            mov dword [ebp+.event+LineClearEvent.row], row
+
+            ; EventDispatcher::throw(&mut event)
+            lea eax, dword [ebp+.event]
+            push eax
+            call EventDispatcher_throw
+
+            ; n_cleared += 1
+            inc dword [ebp+.n_cleared]
+        ; }
+        %$.no_line_clear:
+        pop eax
 
         ; if skip_line { continue }
         test al, al
@@ -1226,6 +2123,42 @@ Game_clear_lines:
     %pop
     %assign row row+1
     %endrep
+
+    ; if n_cleared == 4 {
+    cmp dword [ebp+.n_cleared], 4
+    jne .n_cleared_is_not_4
+    
+        ; Game_SCORE += TETRIS_POINTS
+        add dword [Game_SCORE], TETRIS_POINTS
+
+    jmp .score_handled
+    ; } else if n_cleared > 0 {
+    .n_cleared_is_not_4:
+    cmp dword [ebp+.n_cleared], 0
+    je .score_handled
+
+        ; Game_SCORE += n_cleared * LINE_CLEAR_POINTS
+        mov eax, LINE_CLEAR_POINTS
+        mul dword [ebp+.n_cleared]
+        add dword [Game_SCORE], eax
+    ; }
+    .score_handled:
+
+    ; Game::N_LINES_CLEARED += n_cleared
+    mov eax, dword [ebp+.n_cleared]
+    add dword [Game_N_LINES_CLEARED], eax
+
+    ; Game::LEVEL = Game::N_LINES_CLEARED / 10 + 1
+    mov eax, dword [Game_N_LINES_CLEARED]
+    xor edx, edx
+    mov ecx, 10
+    div ecx
+    inc eax
+    mov dword [Game_LEVEL], eax
+
+    ; self.fall_speed = Game::LEVEL as f32
+    fild dword [Game_LEVEL]
+    fstp dword [esi+Game.fall_speed]
 
     add esp, .stack_size
 
