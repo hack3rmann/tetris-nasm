@@ -142,7 +142,7 @@ main:
         test al, al
         jz .S_is_not_pressed
         
-            ; speed_multiplier = 5.0
+            ; speed_multiplier = 7.0
             fld dword [seven]
             fstp dword [speed_multiplier]
         ; }
