@@ -15,10 +15,10 @@ compile: $(TARGET_DIR)
 	@$(foreach \
 		file,\
 		$(wildcard src/*.asm lib/*.asm lib/winapi/*.asm lib/debug/*.asm),\
-		$(NASM) \
+		$(shell $(NASM) \
 			$(NASM_FLAGS) \
 			$(file) \
-			-o $(addprefix $(TARGET_DIR)/,$(call path_to_name,$(file)).obj);\
+			-o $(addprefix $(TARGET_DIR)/,$(call path_to_name,$(file)).obj))\
 	)
 
 
