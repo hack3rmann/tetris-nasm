@@ -1543,12 +1543,18 @@ Game_handle_collisions:
     push esi
     mov ebp, esp
 
+    .row                equ -4
+    .col                equ -4+.row
+
     .argbase            equ 12
     .self               equ .argbase+0
     .hoffset            equ .argbase+4
     .voffset            equ .argbase+8
 
     .args_size          equ .voffset-.argbase+4
+    .stack_size         equ -.col
+
+    sub esp, .stack_size
 
     ; self := esi
     mov esi, dword [ebp+.self]
@@ -1563,33 +1569,37 @@ Game_handle_collisions:
             cmp byte [esi+Game.cur_figure+(relative_row*4+relative_col)], 0
             je %$.continue
 
-            ; if self.figure_row + relative_row + voffset < 0 { return CollisionType::BottomBoundary }
+            ; row = self.figure_row + relative_row + voffset
             mov eax, dword [esi+Game.figure_row]
-            add eax, relative_row
             add eax, dword [ebp+.voffset]
-            cmp eax, 0
+            add eax, relative_row
+            mov dword [ebp+.row], eax
+
+            ; col = self.figure_col + hoffset + relative_col
+            mov eax, dword [esi+Game.figure_col]
+            add eax, dword [ebp+.hoffset]
+            add eax, relative_col
+            mov dword [ebp+.col], eax
+
+            ; if row < 0 { return CollisionType::BottomBoundary }
+            cmp dword [ebp+.row], 0
             mov al, CollisionType_BottomBoundary
             jl .exit
 
-            ; if self.figure_col + hoffset + relative_col >= GameField_WIDTH { return CollisionType::SideBoundary }
-            mov eax, dword [esi+Game.figure_col]
-            add eax, relative_col
-            add eax, dword [ebp+.hoffset]
-            cmp eax, GameField_WIDTH
+            ; if row >= GameField_HEIGHT { continue }
+            cmp dword [ebp+.row], GameField_HEIGHT
+            jae %$.continue
+
+            ; if col >= GameField_WIDTH { return CollisionType::SideBoundary }
+            cmp dword [ebp+.col], GameField_WIDTH
             mov al, CollisionType_SideBoundary
             jae .exit
 
-            ; if CellType_Empty != self.field.cells[self.figure_row + relative_row + voffset,
-            ;                                       self.figure_col + hoffset + relative_col].type
+            ; if CellType_Empty != self.field.cells[row, col].type
             ; { return CollisionType_GamePiece }
-            mov eax, dword [esi+Game.figure_row]
-            add eax, relative_row
-            add eax, dword [ebp+.voffset]
-            mov edx, GameField_WIDTH
-            mul edx
-            add eax, dword [esi+Game.figure_col]
-            add eax, relative_col
-            add eax, dword [ebp+.hoffset]
+            mov eax, GameField_WIDTH
+            mul dword [ebp+.row]
+            add eax, dword [ebp+.col]
             cmp byte [esi+Game.field+GameField.cells+Cell.sizeof*eax+Cell.type], CellType_Empty
             mov al, CollisionType_GamePiece
             jne .exit
@@ -1605,6 +1615,8 @@ Game_handle_collisions:
     mov al, CollisionType_None
 
 .exit:
+    add esp, .stack_size
+
     pop esi
     pop ebp
     ret .args_size
