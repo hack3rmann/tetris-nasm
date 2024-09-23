@@ -78,7 +78,7 @@ section .rodata align 4
                         RGB(228, 178, 143), RGB(68,  157, 158), \
                         RGB(96,  197, 255), RGB(10,  106, 186)
 
-    Game_INITIAL_FALL_SPEED dd 2.0
+    Game_INITIAL_FALL_SPEED dd 1.0
 
 
 
@@ -106,7 +106,7 @@ extern GameField_new, GameField_draw, GameField_draw_cell
 
 
 
-%define Game_DEFAULT_FIGURE_ROW (GameField_HEIGHT - 3)
+%define Game_DEFAULT_FIGURE_ROW (GameField_HEIGHT - 2)
 %define Game_DEFAULT_FIGURE_COL (GameField_WIDTH / 2 - 2)
 %define Game_LIE_TIMEOUT 3
 %define Game_N_NEXT_FIGURES 3

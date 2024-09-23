@@ -5,6 +5,7 @@
 %include "lib/float_consts.inc"
 %include "lib/debug/print.inc"
 %include "src/event.inc"
+%include "src/state.inc"
 
 
 section .bss align 4
@@ -21,8 +22,8 @@ section .data align 4
     speed_multiplier    dd 1.0
 
 section .rodata align 4
-    window_name db "Tetris", 0, 0
-    thousand    dd 1_000.0
+    window_name     db "Tetris", 0, 0
+    thousand        dd 1_000.0
 
 section .text
     global main
@@ -67,6 +68,12 @@ main:
     push window
     call Window_add_event_listener
 
+    ; GameState::CALLBACKS.GAME = on_game_state
+    mov dword [GameState_CALLBACKS.GAME], on_game_state
+
+    ; GameState::CALLBACKS.PAUSE_MENU = on_pause_state
+    mov dword [GameState_CALLBACKS.PAUSE_MENU], on_pause_state
+
     ; prev_time = GetTickCount()
     call GetTickCount
     mov dword [prev_time], eax
@@ -106,109 +113,23 @@ main:
         push eax
         call ScreenImage_fill
 
-        ; moving_direction = 0
-        mov dword [moving_direction], 0
-
-        ; if keyboard.just_pressed('A')
-        push "A"
+        ; if keyboard.just_pressed(VK_ESCAPE) {
+        push VK_ESCAPE
         push keyboard
         call Keyboard_just_pressed
         test al, al
-        jz .A_is_not_pressed
-        
-            dec dword [moving_direction]
+        jz .ESCAPE_is_not_pressed
+
+            ; StateSwitchEvent::throw(GameState_PauseMenu)
+            push GameState_PauseMenu
+            call StateSwitchEvent_throw
         ; }
-        .A_is_not_pressed:
+        .ESCAPE_is_not_pressed:
 
-        ; if keyboard.just_pressed('D')
-        push "D"
-        push keyboard
-        call Keyboard_just_pressed
-        test al, al
-        jz .D_is_not_pressed
-
-            inc dword [moving_direction]
-        ; }
-        .D_is_not_pressed:
-
-        ; speed_multiplier = 1.0
-        fld1
-        fstp dword [speed_multiplier]
-
-        ; if keyboard.is_pressed('S') {
-        push "S"
-        push keyboard
-        call Keyboard_is_pressed
-        test al, al
-        jz .S_is_not_pressed
-        
-            ; speed_multiplier = 7.0
-            fld dword [seven]
-            fstp dword [speed_multiplier]
-        ; }
-        .S_is_not_pressed:
-        
-        ; if keyboard.just_pressed('R') {
-        push "R"
-        push keyboard
-        call Keyboard_just_pressed
-        test al, al
-        je .R_is_not_pressed
-        
-            ; game.rotate()
-            push game
-            call Game_rotate
-        ; }
-        .R_is_not_pressed:
-
-        ; if keyboard.just_pressed(VK_SPACE) {
-        push VK_SPACE
-        push keyboard
-        call Keyboard_just_pressed
-        test al, al
-        jz .VS_SPACE_is_not_pressed
-        
-            ; game.drop_piece()
-            push game
-            call Game_drop_piece
-        ; }
-        .VS_SPACE_is_not_pressed:
-
-        ; if keyboard.just_pressed('Q') {
-        push "Q"
-        push keyboard
-        call Keyboard_just_pressed
-        test al, al
-        jz .Q_is_not_pressed
-
-            ; game.try_swap_saved()
-            push game
-            call Game_try_swap_saved
-        ; }
-        .Q_is_not_pressed:
-
-        ; game.speed_multiplier = speed_multiplier
-        fld dword [speed_multiplier]
-        fstp dword [game+Game.speed_multiplier]
-
-        ; game.set_moving_direction(moving_direction)
-        push dword [moving_direction]
-        push game
-        call Game_set_moving_direction
-
-        ; game.update(duration as f32 / 1_000.0)
-        fild dword [duration]
-        fdiv dword [thousand]
-        sub esp, 4
-        fstp dword [esp]
-        push game
-        call Game_update
-
-        ; game.draw(&mut graphics.image)
-        lea eax, dword [graphics+Graphics.image]
-        push eax
-        push game
-        call Game_draw
+        ; GameState::CALLBACKS[GameState::CURRENT]
+        mov ecx, dword [GameState_CURRENT]
+        mov ecx, dword [4*ecx+GameState_CALLBACKS]
+        call ecx
 
         ; keyboard.update()
         push keyboard
@@ -234,4 +155,122 @@ main:
     mov eax, dword [exit_code]
 
     pop ebp
+    ret
+
+
+; #[stdcall]
+; fn on_pause_state()
+on_pause_state:
+    DEBUGLN `PAUSE`
+
+    ret
+
+
+; #[stdcall]
+; fn on_game_state()
+on_game_state:
+    ; moving_direction = 0
+    mov dword [moving_direction], 0
+
+    ; if keyboard.just_pressed('A')
+    push "A"
+    push keyboard
+    call Keyboard_just_pressed
+    test al, al
+    jz .A_is_not_pressed
+    
+        dec dword [moving_direction]
+    ; }
+    .A_is_not_pressed:
+
+    ; if keyboard.just_pressed('D')
+    push "D"
+    push keyboard
+    call Keyboard_just_pressed
+    test al, al
+    jz .D_is_not_pressed
+
+        inc dword [moving_direction]
+    ; }
+    .D_is_not_pressed:
+
+    ; speed_multiplier = 1.0
+    fld1
+    fstp dword [speed_multiplier]
+
+    ; if keyboard.is_pressed('S') {
+    push "S"
+    push keyboard
+    call Keyboard_is_pressed
+    test al, al
+    jz .S_is_not_pressed
+    
+        ; speed_multiplier = 7.0
+        fld dword [seven]
+        fstp dword [speed_multiplier]
+    ; }
+    .S_is_not_pressed:
+    
+    ; if keyboard.just_pressed('R') {
+    push "R"
+    push keyboard
+    call Keyboard_just_pressed
+    test al, al
+    je .R_is_not_pressed
+    
+        ; game.rotate()
+        push game
+        call Game_rotate
+    ; }
+    .R_is_not_pressed:
+
+    ; if keyboard.just_pressed(VK_SPACE) {
+    push VK_SPACE
+    push keyboard
+    call Keyboard_just_pressed
+    test al, al
+    jz .VS_SPACE_is_not_pressed
+    
+        ; game.drop_piece()
+        push game
+        call Game_drop_piece
+    ; }
+    .VS_SPACE_is_not_pressed:
+
+    ; if keyboard.just_pressed('Q') {
+    push "Q"
+    push keyboard
+    call Keyboard_just_pressed
+    test al, al
+    jz .Q_is_not_pressed
+
+        ; game.try_swap_saved()
+        push game
+        call Game_try_swap_saved
+    ; }
+    .Q_is_not_pressed:
+
+    ; game.speed_multiplier = speed_multiplier
+    fld dword [speed_multiplier]
+    fstp dword [game+Game.speed_multiplier]
+
+    ; game.set_moving_direction(moving_direction)
+    push dword [moving_direction]
+    push game
+    call Game_set_moving_direction
+
+    ; game.update(duration as f32 / 1_000.0)
+    fild dword [duration]
+    fdiv dword [thousand]
+    sub esp, 4
+    fstp dword [esp]
+    push game
+    call Game_update
+
+    ; game.draw(&mut graphics.image)
+    lea eax, dword [graphics+Graphics.image]
+    push eax
+    push game
+    call Game_draw
+
     ret

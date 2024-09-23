@@ -6,7 +6,8 @@
 
 
 %define EventType_LineClear 0
-%define EventType_COUNT EventType_LineClear+1
+%define EventType_StateSwitch 1
+%define EventType_COUNT EventType_StateSwitch+1
 
 
 

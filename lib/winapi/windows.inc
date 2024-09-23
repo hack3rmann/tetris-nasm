@@ -117,6 +117,7 @@ extern LoadImageA@24, GetTickCount@0
 %define LR_LOADFROMFILE     0x10
 
 %define VK_SPACE            0x20
+%define VK_ESCAPE           0x1B
 
 
 

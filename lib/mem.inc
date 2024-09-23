@@ -37,6 +37,12 @@
     %pop
 %endmacro
 
+; PUSH_STRUCT Type, value_ptr
+%macro PUSH_STRUCT 2
+    sub esp, %1.sizeof
+    MEM_COPY esp, %2, %1.sizeof
+%endmacro
+
 %define ALIGNED(n_bytes) \
     n_bytes + (4 - (n_bytes % 4)) % 4
 
