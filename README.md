@@ -4,7 +4,7 @@
 
 This is classic game named 'Tetris' written in plain old pure assembly (NASM).
 
-![Tetris Gameplay](https://i.ibb.co/vkQ6L0x/tetris-3za-P2e-Amh-G.png)
+https://github.com/user-attachments/assets/ebf3275f-f2bd-4923-85ba-be2d4fa44ec8
 
 ## Implementation goals
 
